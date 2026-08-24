@@ -1,0 +1,16 @@
+name = "free-gift-manager"
+main = "src/worker.js"
+compatibility_date = "2026-08-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "free_gift_manager"
+database_id = "ca8533cb-df73-42ec-ab14-22a3b0233895"
+
+[vars]
+SHOPIFY_SCOPES = "read_products"
+APP_URL = "https://free-gift-manager.houseofsandhya.workers.dev"

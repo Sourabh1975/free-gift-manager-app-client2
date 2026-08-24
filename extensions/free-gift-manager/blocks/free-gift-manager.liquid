@@ -1,0 +1,19 @@
+<script>
+  window.FreeGiftManagerAppUrl = {{ block.settings.app_url | json }};
+</script>
+<script src="{{ 'free-gift-storefront.js' | asset_url }}?v=13" defer="defer"></script>
+
+{% schema %}
+{
+  "name": "Free Gift Manager",
+  "target": "body",
+  "settings": [
+    {
+      "type": "text",
+      "id": "app_url",
+      "label": "App URL",
+      "default": "https://free-gift-manager.houseofsandhya.workers.dev"
+    }
+  ]
+}
+{% endschema %}

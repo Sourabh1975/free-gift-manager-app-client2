@@ -1,0 +1,18 @@
+name = "Free Gift Manager"
+client_id = "362df22e64c781c9ad60f385373fa9a1"
+application_url = "https://free-gift-manager.houseofsandhya.workers.dev"
+embedded = true
+
+[access_scopes]
+scopes = "read_products"
+
+[auth]
+redirect_urls = [
+  "https://free-gift-manager.houseofsandhya.workers.dev/auth/callback"
+]
+
+[webhooks]
+api_version = "2026-10"
+
+[pos]
+embedded = false
