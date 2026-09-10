@@ -1,0 +1,16 @@
+{
+  "name": "free-gift-manager-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute free_gift_manager --local --file=./schema.sql",
+    "db:remote:init": "wrangler d1 execute free_gift_manager --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.28.1"
+  }
+}

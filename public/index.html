@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Free Gift Manager</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">G</div>
+        <div>Gift Manager</div>
+      </div>
+      <button class="nav-item active" data-tab="rules">Rules</button>
+      <button class="nav-item" data-tab="create">Create Rule</button>
+      <button class="nav-item" data-tab="preview">Storefront Preview</button>
+      <button class="nav-item" data-tab="settings">Settings</button>
+    </aside>
+
+    <header class="topbar">
+      <div>
+        <h1>Free Gift Manager</h1>
+        <p id="shopLabel">Connect your Shopify store to start.</p>
+      </div>
+      <div class="topbar-actions">
+        <span class="badge success" id="appStatus">Active</span>
+        <button class="button primary" data-tab-jump="create">Create rule</button>
+      </div>
+    </header>
+
+    <main class="app">
+      <section class="metrics">
+        <div class="metric-card">
+          <span>Active rules</span>
+          <strong id="metricActive">0</strong>
+        </div>
+        <div class="metric-card">
+          <span>Gifts today</span>
+          <strong>0</strong>
+        </div>
+        <div class="metric-card">
+          <span>Conversion lift</span>
+          <strong>--</strong>
+        </div>
+        <div class="metric-card">
+          <span>Revenue influenced</span>
+          <strong>--</strong>
+        </div>
+      </section>
+
+      <section class="panel tab-panel active" id="rules">
+        <div class="panel-head">
+          <div>
+            <h2>Gift Rules</h2>
+            <p>Create product, collection quantity, collection subtotal, or cart subtotal gift campaigns.</p>
+          </div>
+          <button class="button secondary" id="installButton">Install / reconnect app</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Rule name</th>
+                <th>Trigger</th>
+                <th>Gift</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="rulesTable"></tbody>
+          </table>
+        </div>
+        <div class="empty-state hidden" id="emptyRules">
+          <h3>Create your first free gift campaign</h3>
+          <p>Start with a product, collection quantity, collection subtotal, or cart subtotal trigger.</p>
+          <button class="button primary" data-tab-jump="create">Create rule</button>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="create">
+        <div class="form-grid">
+          <form class="panel" id="ruleForm">
+            <div class="panel-head">
+              <div>
+                <h2 id="formTitle">Create gift rule</h2>
+                <p>Choose a product, collection quantity, collection subtotal, or cart subtotal trigger.</p>
+              </div>
+              <button class="button secondary" type="button" id="resetForm">New rule</button>
+            </div>
+
+            <input type="hidden" id="ruleId">
+            <div class="field-row">
+              <label>
+                Rule name
+                <input id="name" required value="Free Bag Above Rs 599">
+              </label>
+              <label>
+                Status
+                <select id="status">
+                  <option value="active">Active</option>
+                  <option value="draft">Draft</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Trigger type
+              <select id="triggerType">
+                <option value="product">Specific product</option>
+                <option value="collection">Products from collection</option>
+                <option value="collection_subtotal">Collection subtotal</option>
+                <option value="subtotal">Cart subtotal</option>
+              </select>
+            </label>
+
+            <div class="field-row">
+              <label id="triggerValueWrap">
+                Product handle or product ID
+                <input id="triggerValue" placeholder="lost-love-lipstick">
+              </label>
+              <div id="collectionValueWrap" class="form-field hidden">
+                <span class="field-label">Collections</span>
+                <input id="collectionValue" type="hidden">
+                <div class="collection-selector">
+                  <div id="selectedCollections" class="selected-collections">
+                    <span class="empty-selection">No collections selected</span>
+                  </div>
+                  <button class="button secondary" id="openCollectionPicker" type="button">Select collections</button>
+                </div>
+                <small>Select one or more collections from this Shopify store.</small>
+                <div class="manual-collection-entry">
+                  <span>Or add a collection manually</span>
+                  <div class="manual-collection-controls">
+                    <input id="manualCollectionValue" type="text" placeholder="Collection URL, handle, or ID">
+                    <button class="button secondary" id="addManualCollection" type="button">Add</button>
+                  </div>
+                  <small>URLs and handles work without reconnection. Numeric IDs require Shopify Admin access.</small>
+                </div>
+              </div>
+              <label id="collectionQuantityWrap" class="hidden">
+                Minimum item quantity
+                <input id="triggerQuantity" type="number" min="1" value="2">
+              </label>
+              <label id="subtotalWrap" class="hidden">
+                Minimum subtotal in paise
+                <input id="subtotalAmount" type="number" min="0" value="59900">
+              </label>
+              <label>
+                Priority
+                <input id="priority" type="number" min="1" value="1">
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label>
+                Gift variant ID (optional)
+                <input id="giftVariantId" placeholder="47812345678901">
+              </label>
+              <label>
+                Gift quantity
+                <input id="giftQuantity" type="number" min="1" value="1">
+              </label>
+            </div>
+
+            <label>
+              Gift product ID (when variant ID is blank)
+              <input id="giftProductId" placeholder="9713040785720">
+            </label>
+
+            <div class="field-row">
+              <label>
+                Gift title
+                <input id="giftTitle" required value="Brown Anatomy Gift Bag">
+              </label>
+              <label>
+                Gift value in rupees
+                <input id="giftValue" type="number" min="0" value="299">
+              </label>
+            </div>
+
+            <label>
+              Gift image URL
+              <input id="giftImage" placeholder="https://cdn.shopify.com/...">
+            </label>
+
+            <div class="checks">
+              <label><input id="autoAdd" type="checkbox" checked> Auto add gift</label>
+              <label><input id="directCheckoutEnabled" type="checkbox"> Add gift on product Buy Now</label>
+              <label><input id="limitOnePerOrder" type="checkbox" checked> Limit one gift per order</label>
+            </div>
+
+            <label>
+              Unlocked message
+              <input id="messageUnlocked" value="You unlocked a free gift">
+            </label>
+            <label>
+              Locked message
+              <input id="messageLocked" value="Add more to unlock your free gift">
+            </label>
+
+            <div class="form-actions">
+              <button class="button primary" type="submit">Save rule</button>
+              <span id="saveNotice"></span>
+            </div>
+          </form>
+
+          <aside class="panel preview-card">
+            <h2>Cart preview</h2>
+            <div class="cart-preview">
+              <div class="cart-preview-head">
+                <strong>Cart</strong>
+                <span>1 item</span>
+              </div>
+              <div class="cart-line">
+                <div class="thumb"></div>
+                <div>
+                  <strong>Lost Love Lipstick</strong>
+                  <p>Rs 299</p>
+                </div>
+              </div>
+              <div class="gift-box">
+                <span class="badge wine">Free gift</span>
+                <h3 id="previewMessage">You unlocked a free gift</h3>
+                <p><span id="previewGiftTitle">Brown Anatomy Gift Bag</span><span id="previewGiftValue"> - Worth &#8377;299</span></p>
+                <button>Added automatically</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="panel tab-panel" id="preview">
+        <div class="panel-head">
+          <div>
+            <h2>Storefront Preview</h2>
+            <p>This is how the gift widget appears near cart drawer/cart page.</p>
+          </div>
+        </div>
+        <div class="storefront-preview">
+          <div class="browser-bar"></div>
+          <div class="mock-store">
+            <div class="mock-cart">
+              <h3>Your cart</h3>
+              <div class="cart-line">
+                <div class="thumb lipstick"></div>
+                <div>
+                  <strong>Lost Love Lipstick</strong>
+                  <p>Rs 299</p>
+                </div>
+              </div>
+              <div class="gift-box">
+                <span class="badge wine">Unlocked</span>
+                <h3>You unlocked a free gift</h3>
+                <p>Brown Anatomy Gift Bag</p>
+                <div class="progress"><span style="width: 100%"></span></div>
+              </div>
+              <button class="checkout">Checkout</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel tab-panel" id="settings">
+        <div class="panel-head">
+          <div>
+            <h2>Settings</h2>
+            <p>Basic app and storefront behavior.</p>
+          </div>
+        </div>
+        <form id="settingsForm" class="settings-form">
+          <label><input id="enabled" type="checkbox" checked> Enable app</label>
+          <label><input id="removeWhenIneligible" type="checkbox" checked> Remove gift when rule no longer matches</label>
+          <label><input id="lockGiftQuantity" type="checkbox" checked> Lock managed gift quantity</label>
+          <label><input id="blockManualGiftAdd" type="checkbox" checked> Remove gifts added without an eligible app rule</label>
+          <label><input id="debugMode" type="checkbox"> Debug mode</label>
+          <label>
+            Gift line label
+            <input id="giftLineLabel" value="Free gift">
+          </label>
+          <label>
+            Cart drawer selector
+            <input id="cartDrawerSelector" placeholder="#CartDrawer, cart-drawer">
+          </label>
+          <button class="button primary" type="submit">Save settings</button>
+          <span id="settingsNotice"></span>
+        </form>
+      </section>
+    </main>
+
+    <div class="picker-overlay hidden" id="collectionPickerModal" role="dialog" aria-modal="true" aria-labelledby="collectionPickerTitle">
+      <div class="collection-picker-modal">
+        <div class="picker-header">
+          <div>
+            <h2 id="collectionPickerTitle">Select collections</h2>
+            <p>Choose every collection that should count toward this rule.</p>
+          </div>
+          <button class="icon-button" id="closeCollectionPicker" type="button" title="Close" aria-label="Close">&#215;</button>
+        </div>
+        <div class="picker-toolbar">
+          <input id="collectionSearch" type="search" placeholder="Search collections">
+          <button class="button secondary" id="refreshCollections" type="button">Refresh</button>
+        </div>
+        <div class="picker-status" id="collectionPickerStatus">Loading collections...</div>
+        <div class="collection-options" id="collectionOptions"></div>
+        <div class="picker-footer">
+          <strong id="collectionSelectionCount">0 selected</strong>
+          <div class="picker-actions">
+            <button class="button secondary" id="cancelCollectionPicker" type="button">Cancel</button>
+            <button class="button primary" id="applyCollections" type="button">Apply selections</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/admin.js"></script>
+  </body>
+</html>

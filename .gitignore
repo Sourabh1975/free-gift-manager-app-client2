@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.shopify/
+dist-check/
+.dev.vars
+.env
+.DS_Store
