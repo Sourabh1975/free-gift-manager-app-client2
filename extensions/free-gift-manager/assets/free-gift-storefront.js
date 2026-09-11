@@ -657,16 +657,26 @@
   function getHost() {
     var selector = state.config.settings && state.config.settings.cartDrawerSelector;
     if (selector) {
-      var customHost = document.querySelector(selector);
-      if (customHost) return customHost;
+      try {
+        var customHost = document.querySelector(selector);
+        if (customHost) return drawerContentHost(customHost);
+      } catch (error) {
+        console.warn("[FreeGiftManager] Invalid cart drawer selector", selector);
+      }
     }
     var haloDrawerHost = document.querySelector("#halo-cart-sidebar .halo-sidebar-wrapper");
     if (haloDrawerHost && !document.body.classList.contains("template-cart")) return haloDrawerHost;
-    return document.querySelector("cart-drawer") ||
+    var drawer = document.querySelector("cart-drawer-component") ||
+      document.querySelector("cart-drawer") ||
       document.querySelector("#CartDrawer") ||
-      document.querySelector(".cart-drawer") ||
-      document.querySelector("form[action='/cart']") ||
+      document.querySelector(".cart-drawer");
+    return drawer ? drawerContentHost(drawer) : document.querySelector("form[action='/cart']") ||
       document.body;
+  }
+
+  function drawerContentHost(drawer) {
+    // Insert inside the visible panel, not alongside the drawer's overlay/dialog.
+    return drawer.querySelector(".drawer__inner, .cart-drawer__inner, .cart-drawer__content, .halo-sidebar-wrapper, [role='dialog'], dialog") || drawer;
   }
 
   function refreshCartAfterMutation() {
@@ -678,8 +688,8 @@
       return;
     }
 
-    getCart().then(function (cart) {
-      var drawerUpdated = refreshThemeCartDrawer(cart);
+    getCart().then(async function (cart) {
+      var drawerUpdated = await refreshThemeCartDrawer(cart);
       if (!drawerUpdated) updateCartCount(cart);
       document.dispatchEvent(new CustomEvent("cart:updated", { detail: { source: "free-gift-manager", cart: cart } }));
       document.dispatchEvent(new CustomEvent("cart:refresh", { detail: { source: "free-gift-manager", cart: cart } }));
@@ -693,13 +703,27 @@
     });
   }
 
-  function refreshThemeCartDrawer(cart) {
+  async function refreshThemeCartDrawer(cart) {
     if (window.sharedFunctions && typeof window.sharedFunctions.updateSidebarCart === "function") {
       window.sharedFunctions.updateSidebarCart(cart);
       return true;
     }
     if (window.halo && typeof window.halo.updateSidebarCart === "function") {
       window.halo.updateSidebarCart(cart);
+      return true;
+    }
+    var drawer = document.querySelector("cart-drawer");
+    if (drawer && typeof drawer.renderContents === "function" && typeof drawer.getSectionsToRender === "function") {
+      var sectionIds = drawer.getSectionsToRender().map(function (section) { return section.id; });
+      var response = await fetch("/?sections=" + encodeURIComponent(sectionIds.join(",")), {
+        credentials: "same-origin", cache: "no-store"
+      });
+      if (!response.ok) throw new Error("Cart sections failed: " + response.status);
+      var sections = await response.json();
+      if (sectionIds.some(function (id) { return typeof sections[id] !== "string"; })) {
+        throw new Error("Cart sections unavailable");
+      }
+      drawer.renderContents({ sections: sections });
       return true;
     }
     return false;
