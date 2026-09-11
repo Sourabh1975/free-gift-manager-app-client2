@@ -29,6 +29,7 @@
       document.addEventListener("click", onPossibleCartChange, true);
       document.addEventListener("change", onPossibleCartChange, true);
       document.addEventListener("input", onPossibleCartChange, true);
+      document.addEventListener("click", onGiftChoiceClick, true);
       document.addEventListener("cart:refresh", checkCart);
       document.addEventListener("cart:updated", checkCart);
       hookCartRequests();
@@ -130,7 +131,7 @@
   function directCheckoutRules() {
     if (!state.config || !state.config.enabled) return [];
     return (state.config.rules || []).filter(function (rule) {
-      return rule.autoAdd && rule.directCheckoutEnabled;
+      return rule.autoAdd && rule.directCheckoutEnabled && !isChoiceGiftRule(rule);
     });
   }
 
@@ -278,11 +279,16 @@
       state.lastCart = cart;
       applyGiftControlLocks(cart);
       var matchedRules = rules.filter(function (rule) { return matchesRule(rule, cart); });
-      var expectedGiftRules = matchedRules.filter(function (rule) { return rule.autoAdd; });
-      renderMessage(matchedRules[0], cart, rules[0]);
+      var expectedGiftRules = matchedRules.filter(function (rule) {
+        return rule.autoAdd && !isChoiceGiftRule(rule);
+      });
+      var messageRule = matchedRules.find(function (rule) {
+        return isChoiceGiftRule(rule) && !findManagedGiftForRule(cart, rule);
+      }) || matchedRules[0];
+      renderMessage(messageRule, cart, rules[0]);
 
       if (expectedGiftRules.length) {
-        var removedUnexpected = await removeUnexpectedGifts(cart, expectedGiftRules);
+        var removedUnexpected = await removeUnexpectedGifts(cart, matchedRules);
         if (removedUnexpected) cart = await getCart();
         var giftChanged = false;
         for (var index = 0; index < expectedGiftRules.length; index += 1) {
@@ -293,6 +299,9 @@
           }
         }
         if (unauthorizedGiftsRemoved || removedUnexpected || giftChanged) refreshCartAfterMutation();
+      } else if (matchedRules.length) {
+        var removedMatchedUnexpected = await removeUnexpectedGifts(cart, matchedRules);
+        if (unauthorizedGiftsRemoved || removedMatchedUnexpected) refreshCartAfterMutation();
       } else if (state.config.settings && state.config.settings.removeWhenIneligible) {
         var giftsRemoved = await removeManagedGifts(cart);
         if (unauthorizedGiftsRemoved || giftsRemoved) refreshCartAfterMutation();
@@ -330,6 +339,7 @@
 
   async function ensureGift(cart, rule) {
     var giftVariantId = String(rule.giftVariantId);
+    if (!giftVariantId) return false;
     var expectedQuantity = Math.max(1, Number(rule.giftQuantity || 1));
     var attemptSignature = giftAttemptSignature(cart, rule);
     var giftProperties = {
@@ -400,9 +410,10 @@
   }
 
   async function removeUnauthorizedGiftLines(cart, rules) {
-    var protectedVariantIds = (rules || []).map(function (rule) {
-      return String(rule.giftVariantId || "");
-    }).filter(Boolean);
+    var protectedVariantIds = [];
+    (rules || []).forEach(function (rule) {
+      protectedVariantIds = protectedVariantIds.concat(giftVariantIds(rule));
+    });
     if (!protectedVariantIds.length) return false;
 
     var unauthorizedLines = (cart.items || []).filter(function (item) {
@@ -417,13 +428,13 @@
     var expectedRulesById = {};
     var expectedGiftFound = {};
     expectedRules.forEach(function (rule) {
-      expectedRulesById[String(rule.id)] = String(rule.giftVariantId);
+      expectedRulesById[String(rule.id)] = giftVariantIds(rule);
     });
     var giftLines = cart.items.filter(function (item) {
       if (isLegacyManagedGift(item)) return true;
       if (!isManagedGift(item)) return false;
       var ruleId = String(itemProperty(item, "_free_gift_rule"));
-      var isExpectedGift = expectedRulesById[ruleId] === String(item.variant_id);
+      var isExpectedGift = (expectedRulesById[ruleId] || []).indexOf(String(item.variant_id)) !== -1;
       if (isExpectedGift && !expectedGiftFound[ruleId]) {
         expectedGiftFound[ruleId] = true;
         return false;
@@ -460,6 +471,37 @@
     return response.json();
   }
 
+  async function onGiftChoiceClick(event) {
+    var button = event.target && event.target.closest && event.target.closest("[data-fgm-add-choice]");
+    if (!button || !state.config || state.busy) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    var rule = (state.config.rules || []).find(function (item) {
+      return String(item.id) === String(button.getAttribute("data-fgm-add-choice"));
+    });
+    if (!rule) return;
+
+    var select = document.querySelector('[data-fgm-choice-select="' + escapeAttributeValue(rule.id) + '"]');
+    var variantId = select ? select.value : "";
+    if (!variantId) return;
+
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+
+    try {
+      var cart = state.lastCart || await getCart();
+      var changed = await ensureGift(cart, Object.assign({}, rule, { giftVariantId: variantId }));
+      if (changed) refreshCartAfterMutation();
+      scheduleCheck(300);
+    } catch (error) {
+      if (state.config.settings && state.config.settings.debugMode) console.warn("[FreeGiftManager] Gift choice failed", error);
+    } finally {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    }
+  }
+
   function renderMessage(matchedRule, cart, firstRule) {
     var host = getHost();
     if (!host) return;
@@ -486,6 +528,18 @@
     var remaining = 0;
     var percent = 100;
     var lockedDetailHtml = escapeHtml(giftDisplayTitle(rule));
+
+    if (matchedRule && isChoiceGiftRule(rule)) {
+      var choiceGift = findManagedGiftForRule(cart, rule);
+      box.innerHTML = [
+        '<div style="border:1px solid #ead1cc;background:#fff7f3;border-radius:8px;padding:12px;margin:12px 0;font-family:inherit;">',
+        '<div style="font-weight:800;color:#8f1018;margin-bottom:4px;">' + escapeHtml(rule.messageUnlocked) + '</div>',
+        choiceGift ? '<div style="font-size:13px;color:#4b3937;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>' : giftChoiceHtml(rule),
+        '<div style="height:7px;background:#efd8d4;border-radius:99px;overflow:hidden;margin-top:10px;"><span style="display:block;height:100%;width:100%;background:#8f1018;"></span></div>',
+        '</div>'
+      ].join("");
+      return;
+    }
 
     if (locked && rule.triggerType === "subtotal") {
       remaining = Math.max(0, Number(rule.subtotalAmount || 0) - eligibleSubtotal);
@@ -545,6 +599,59 @@
     return label.replace(/\b\w/g, function (letter) {
       return letter.toUpperCase();
     }).replace(/\bIv\b/g, "IV");
+  }
+
+  function giftChoiceHtml(rule) {
+    var variants = giftVariantOptions(rule);
+    var enabledVariants = variants.filter(function (variant) { return variant.available !== false; });
+    if (!enabledVariants.length) {
+      return '<div style="font-size:13px;color:#4b3937;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>';
+    }
+
+    return [
+      '<div style="font-size:13px;color:#4b3937;margin-bottom:8px;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>',
+      '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">',
+      '<select data-fgm-choice-select="' + escapeAttributeValue(rule.id) + '" style="min-width:0;border:1px solid #e6c5bf;border-radius:6px;padding:8px;background:#fff;color:#4b3937;font:inherit;">',
+      enabledVariants.map(function (variant) {
+        return '<option value="' + escapeAttributeValue(variant.id) + '">' + escapeHtml(giftVariantLabel(variant)) + '</option>';
+      }).join(""),
+      '</select>',
+      '<button data-fgm-add-choice="' + escapeAttributeValue(rule.id) + '" type="button" style="border:0;border-radius:6px;background:#8f1018;color:#fff;font-weight:800;padding:9px 12px;cursor:pointer;">Add free gift</button>',
+      '</div>'
+    ].join("");
+  }
+
+  function giftVariantOptions(rule) {
+    return Array.isArray(rule.giftVariantOptions) ? rule.giftVariantOptions : [];
+  }
+
+  function giftVariantLabel(variant) {
+    var title = String(variant.title || "").trim();
+    return title && title.toLowerCase() !== "default title" ? title : "Default";
+  }
+
+  function isChoiceGiftRule(rule) {
+    return rule && rule.giftSelectionMode === "choose_variant";
+  }
+
+  function giftVariantIds(rule) {
+    var ids = [];
+    if (rule && rule.giftVariantId) ids.push(String(rule.giftVariantId));
+    giftVariantOptions(rule).forEach(function (variant) {
+      if (variant && variant.id) ids.push(String(variant.id));
+    });
+    return ids.filter(function (id, index) {
+      return id && ids.indexOf(id) === index;
+    });
+  }
+
+  function findManagedGiftForRule(cart, rule) {
+    var ids = giftVariantIds(rule);
+    return (cart.items || []).find(function (item) {
+      return ids.indexOf(String(item.variant_id)) !== -1 &&
+        isManagedGift(item) &&
+        String(itemProperty(item, "_free_gift_rule")) === String(rule.id);
+    });
   }
 
   function getHost() {

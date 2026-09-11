@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS gift_rules (
   gift_value INTEGER NOT NULL DEFAULT 0,
   gift_image TEXT,
   gift_quantity INTEGER NOT NULL DEFAULT 1,
+  gift_selection_mode TEXT NOT NULL DEFAULT 'auto',
+  gift_variant_options TEXT NOT NULL DEFAULT '[]',
   auto_add INTEGER NOT NULL DEFAULT 1,
   direct_checkout_enabled INTEGER NOT NULL DEFAULT 0,
   limit_one_per_order INTEGER NOT NULL DEFAULT 1,

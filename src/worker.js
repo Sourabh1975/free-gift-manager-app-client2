@@ -57,6 +57,8 @@ async function ensureSchema(env) {
       gift_value INTEGER NOT NULL DEFAULT 0,
       gift_image TEXT,
       gift_quantity INTEGER NOT NULL DEFAULT 1,
+      gift_selection_mode TEXT NOT NULL DEFAULT 'auto',
+      gift_variant_options TEXT NOT NULL DEFAULT '[]',
       auto_add INTEGER NOT NULL DEFAULT 1,
       direct_checkout_enabled INTEGER NOT NULL DEFAULT 0,
       limit_one_per_order INTEGER NOT NULL DEFAULT 1,
@@ -86,6 +88,8 @@ async function ensureSchema(env) {
   await ensureColumn(env, "gift_rules", "gift_value", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn(env, "gift_rules", "gift_product_id", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn(env, "gift_rules", "direct_checkout_enabled", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn(env, "gift_rules", "gift_selection_mode", "TEXT NOT NULL DEFAULT 'auto'");
+  await ensureColumn(env, "gift_rules", "gift_variant_options", "TEXT NOT NULL DEFAULT '[]'");
   await ensureColumn(env, "app_settings", "lock_gift_quantity", "INTEGER NOT NULL DEFAULT 1");
   await ensureColumn(env, "app_settings", "block_manual_gift_add", "INTEGER NOT NULL DEFAULT 1");
 }
@@ -288,20 +292,22 @@ async function createRule(request, env) {
   await ensureSchema(env);
   const shop = requireShop(request);
   const body = await request.json();
-  const rule = await resolveGiftVariant(env, shop, cleanRule(body));
+  const rule = await resolveGiftConfig(env, shop, cleanRule(body));
   const now = new Date().toISOString();
   const result = await env.DB.prepare(`
     INSERT INTO gift_rules (
       shop, name, status, trigger_type, trigger_value, subtotal_amount, trigger_quantity,
-      gift_variant_id, gift_product_id, gift_title, gift_value, gift_image, gift_quantity, auto_add,
+      gift_variant_id, gift_product_id, gift_title, gift_value, gift_image, gift_quantity,
+      gift_selection_mode, gift_variant_options, auto_add,
       direct_checkout_enabled, limit_one_per_order, message_unlocked, message_locked, placement,
       priority, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     shop, rule.name, rule.status, rule.triggerType, rule.triggerValue,
     rule.subtotalAmount, rule.triggerQuantity, rule.giftVariantId, rule.giftProductId,
     rule.giftTitle, rule.giftValue, rule.giftImage,
-    rule.giftQuantity, rule.autoAdd ? 1 : 0, rule.directCheckoutEnabled ? 1 : 0, rule.limitOnePerOrder ? 1 : 0,
+    rule.giftQuantity, rule.giftSelectionMode, JSON.stringify(rule.giftVariantOptions || []),
+    rule.autoAdd ? 1 : 0, rule.directCheckoutEnabled ? 1 : 0, rule.limitOnePerOrder ? 1 : 0,
     rule.messageUnlocked, rule.messageLocked, rule.placement,
     rule.priority, now, now
   ).run();
@@ -313,13 +319,14 @@ async function updateRule(request, env) {
   const shop = requireShop(request);
   const id = getId(request);
   const body = await request.json();
-  const rule = await resolveGiftVariant(env, shop, cleanRule(body));
+  const rule = await resolveGiftConfig(env, shop, cleanRule(body));
   const now = new Date().toISOString();
   await env.DB.prepare(`
     UPDATE gift_rules SET
       name = ?, status = ?, trigger_type = ?, trigger_value = ?,
       subtotal_amount = ?, trigger_quantity = ?, gift_variant_id = ?, gift_product_id = ?, gift_title = ?,
-      gift_value = ?, gift_image = ?, gift_quantity = ?, auto_add = ?, direct_checkout_enabled = ?, limit_one_per_order = ?,
+      gift_value = ?, gift_image = ?, gift_quantity = ?, gift_selection_mode = ?, gift_variant_options = ?,
+      auto_add = ?, direct_checkout_enabled = ?, limit_one_per_order = ?,
       message_unlocked = ?, message_locked = ?, placement = ?,
       priority = ?, updated_at = ?
     WHERE id = ? AND shop = ?
@@ -327,7 +334,8 @@ async function updateRule(request, env) {
     rule.name, rule.status, rule.triggerType, rule.triggerValue,
     rule.subtotalAmount, rule.triggerQuantity, rule.giftVariantId, rule.giftProductId,
     rule.giftTitle, rule.giftValue, rule.giftImage,
-    rule.giftQuantity, rule.autoAdd ? 1 : 0, rule.directCheckoutEnabled ? 1 : 0, rule.limitOnePerOrder ? 1 : 0,
+    rule.giftQuantity, rule.giftSelectionMode, JSON.stringify(rule.giftVariantOptions || []),
+    rule.autoAdd ? 1 : 0, rule.directCheckoutEnabled ? 1 : 0, rule.limitOnePerOrder ? 1 : 0,
     rule.messageUnlocked, rule.messageLocked, rule.placement,
     rule.priority, now, id, shop
   ).run();
@@ -423,8 +431,12 @@ function cleanRule(body) {
   }
   const giftVariantId = String(body.giftVariantId || "").trim();
   const giftProductId = normalizeProductId(body.giftProductId);
+  const giftSelectionMode = body.giftSelectionMode === "choose_variant" ? "choose_variant" : "auto";
   if (!giftVariantId && !giftProductId) {
     throw new Error("Gift variant ID or gift product ID is required");
+  }
+  if (giftSelectionMode === "choose_variant" && !giftProductId) {
+    throw new Error("Gift product ID is required when customers choose a gift variant");
   }
 
   const triggerValue = normalizeTriggerValue(body.triggerValue, triggerType);
@@ -445,6 +457,8 @@ function cleanRule(body) {
     giftValue: Math.max(0, Number.parseInt(body.giftValue || 0, 10)),
     giftImage: String(body.giftImage || "").slice(0, 500),
     giftQuantity: Math.max(1, Number.parseInt(body.giftQuantity || 1, 10)),
+    giftSelectionMode,
+    giftVariantOptions: [],
     autoAdd: body.autoAdd !== false,
     directCheckoutEnabled: body.directCheckoutEnabled === true,
     limitOnePerOrder: body.limitOnePerOrder !== false,
@@ -470,6 +484,8 @@ function ruleFromRow(row) {
     giftValue: row.gift_value || 0,
     giftImage: row.gift_image || "",
     giftQuantity: row.gift_quantity || 1,
+    giftSelectionMode: row.gift_selection_mode || "auto",
+    giftVariantOptions: parseStoredJson(row.gift_variant_options, []),
     autoAdd: row.auto_add === 1,
     directCheckoutEnabled: row.direct_checkout_enabled === 1,
     limitOnePerOrder: row.limit_one_per_order === 1,
@@ -512,7 +528,13 @@ function normalizeProductId(value) {
   return productId;
 }
 
-async function resolveGiftVariant(env, shop, rule) {
+async function resolveGiftConfig(env, shop, rule) {
+  if (rule.giftSelectionMode === "choose_variant") {
+    const variants = await getGiftProductVariants(env, shop, rule.giftProductId);
+    const selectedVariantId = rule.giftVariantId || variants.find((item) => item.available !== false)?.id || variants[0]?.id || "";
+    return { ...rule, giftVariantId: selectedVariantId, giftVariantOptions: variants };
+  }
+
   if (rule.giftVariantId) return rule;
 
   const session = await env.DB.prepare("SELECT access_token FROM shop_sessions WHERE shop = ?").bind(shop).first();
@@ -530,12 +552,37 @@ async function resolveGiftVariant(env, shop, rule) {
   return { ...rule, giftVariantId: variantId };
 }
 
+async function getGiftProductVariants(env, shop, productId) {
+  const session = await env.DB.prepare("SELECT access_token FROM shop_sessions WHERE shop = ?").bind(shop).first();
+  let variants = [];
+
+  if (session?.access_token) {
+    try {
+      variants = await getAdminProductVariants(shop, session.access_token, productId);
+    } catch (error) {
+      console.warn("Admin product variant lookup failed; trying published product catalog", error.message);
+    }
+  }
+
+  if (!variants.length) variants = await getPublicProductVariants(shop, productId);
+  if (!variants.length) throw new Error("Gift product has no variants");
+  return variants;
+}
+
 async function getAdminProductVariant(shop, accessToken, productId) {
+  const variants = await getAdminProductVariants(shop, accessToken, productId);
+  const variant = variants.find((item) => item.available !== false) || variants[0];
+  if (!variant?.id) throw new Error("Gift product has no variants");
+  return String(variant.id);
+}
+
+async function getAdminProductVariants(shop, accessToken, productId) {
   const query = `
     query GiftProduct($id: ID!) {
       product(id: $id) {
+        title
         variants(first: 100) {
-          nodes { id availableForSale }
+          nodes { id title availableForSale selectedOptions { name value } }
         }
       }
     }
@@ -556,12 +603,21 @@ async function getAdminProductVariant(shop, accessToken, productId) {
   const payload = await response.json();
   if (payload.errors?.length) throw new Error(payload.errors[0].message || "Gift product lookup failed");
   const variants = payload.data?.product?.variants?.nodes || [];
-  const variant = variants.find((item) => item.availableForSale) || variants[0];
-  if (!variant?.id) throw new Error("Gift product has no variants");
-  return String(variant.id).split("/").pop();
+  return variants.map((variant) => ({
+    id: String(variant.id || "").split("/").pop(),
+    title: variant.title || optionTitle(variant.selectedOptions),
+    available: variant.availableForSale !== false
+  })).filter((variant) => variant.id);
 }
 
 async function getPublicProductVariant(shop, productId) {
+  const variants = await getPublicProductVariants(shop, productId);
+  const variant = variants.find((item) => item.available !== false) || variants[0];
+  if (!variant?.id) throw new Error("Gift product has no variants");
+  return String(variant.id);
+}
+
+async function getPublicProductVariants(shop, productId) {
   let page = 1;
 
   while (page <= 20) {
@@ -578,15 +634,22 @@ async function getPublicProductVariant(shop, productId) {
     const product = products.find((item) => String(item.id) === productId);
     if (product) {
       const variants = Array.isArray(product.variants) ? product.variants : [];
-      const variant = variants.find((item) => item.available !== false) || variants[0];
-      if (!variant?.id) throw new Error("Gift product has no variants");
-      return String(variant.id);
+      return variants.map((variant) => ({
+        id: String(variant.id || ""),
+        title: variant.title || [variant.option1, variant.option2, variant.option3].filter(Boolean).join(" / "),
+        available: variant.available !== false
+      })).filter((variant) => variant.id);
     }
     if (products.length < 250) break;
     page += 1;
   }
 
   throw new Error("Gift product not found. Publish it to Online Store, reconnect the app, or enter a variant ID");
+}
+
+function optionTitle(options) {
+  const title = (options || []).map((option) => option.value).filter(Boolean).join(" / ");
+  return title || "Default Title";
 }
 
 async function hydrateCollectionRules(env, shop, rules) {
@@ -721,6 +784,14 @@ function settingsFromRow(row) {
     giftLineLabel: row?.gift_line_label || "Free gift",
     cartDrawerSelector: row?.cart_drawer_selector || ""
   };
+}
+
+function parseStoredJson(value, fallback) {
+  try {
+    return JSON.parse(value || "");
+  } catch (error) {
+    return fallback;
+  }
 }
 
 function requireShop(request) {

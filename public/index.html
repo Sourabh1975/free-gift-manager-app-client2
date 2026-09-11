@@ -165,6 +165,14 @@
             </div>
 
             <label>
+              Gift selection mode
+              <select id="giftSelectionMode">
+                <option value="auto">Auto add fixed gift</option>
+                <option value="choose_variant">Customer chooses variant / size</option>
+              </select>
+            </label>
+
+            <label>
               Gift product ID (when variant ID is blank)
               <input id="giftProductId" placeholder="9713040785720">
             </label>
@@ -224,7 +232,7 @@
                 <span class="badge wine">Free gift</span>
                 <h3 id="previewMessage">You unlocked a free gift</h3>
                 <p><span id="previewGiftTitle">Brown Anatomy Gift Bag</span><span id="previewGiftValue"> - Worth &#8377;299</span></p>
-                <button>Added automatically</button>
+                <button id="previewGiftButton">Added automatically</button>
               </div>
             </div>
           </aside>

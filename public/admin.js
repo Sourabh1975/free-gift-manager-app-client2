@@ -48,6 +48,7 @@ function init() {
   });
   $("#giftTitle").addEventListener("input", updateGiftPreview);
   $("#giftValue").addEventListener("input", updateGiftPreview);
+  $("#giftSelectionMode").addEventListener("change", updateGiftPreview);
   $("#messageUnlocked").addEventListener("input", () => $("#previewMessage").textContent = $("#messageUnlocked").value || "You unlocked a free gift");
   $("#ruleForm").addEventListener("submit", saveRule);
   $("#settingsForm").addEventListener("submit", saveSettings);
@@ -264,7 +265,7 @@ function renderRules(rules) {
     <tr>
       <td><strong>${escapeHtml(rule.name)}</strong></td>
       <td>${triggerLabel(rule)}</td>
-      <td>${escapeHtml(rule.giftTitle)}${rule.giftValue > 0 ? `<br><small>Worth \u20B9${rule.giftValue}</small>` : ""}<br><small>Variant: ${escapeHtml(rule.giftVariantId)}</small>${rule.giftProductId ? `<br><small>Product: ${escapeHtml(rule.giftProductId)}</small>` : ""}${rule.directCheckoutEnabled ? "<br><small>Buy Now enabled</small>" : ""}</td>
+      <td>${escapeHtml(rule.giftTitle)}${rule.giftValue > 0 ? `<br><small>Worth \u20B9${rule.giftValue}</small>` : ""}<br><small>${rule.giftSelectionMode === "choose_variant" ? "Customer chooses variant" : "Auto gift"}</small><br><small>Variant: ${escapeHtml(rule.giftVariantId)}</small>${rule.giftProductId ? `<br><small>Product: ${escapeHtml(rule.giftProductId)}</small>` : ""}${rule.directCheckoutEnabled ? "<br><small>Buy Now enabled</small>" : ""}</td>
       <td><span class="badge ${rule.status === "active" ? "success" : "draft"}">${rule.status}</span></td>
       <td>${rule.priority}</td>
       <td>
@@ -325,6 +326,7 @@ function fillForm(rule) {
   $("#triggerQuantity").value = rule.triggerQuantity || 1;
   $("#subtotalAmount").value = rule.subtotalAmount || 0;
   $("#giftVariantId").value = rule.giftVariantId || "";
+  $("#giftSelectionMode").value = rule.giftSelectionMode || "auto";
   $("#giftProductId").value = rule.giftProductId || "";
   $("#giftTitle").value = rule.giftTitle || "";
   $("#giftValue").value = rule.giftValue || 0;
@@ -352,10 +354,12 @@ function resetForm() {
   $("#giftQuantity").value = 1;
   $("#priority").value = 1;
   $("#autoAdd").checked = true;
+  $("#giftSelectionMode").value = "auto";
   $("#directCheckoutEnabled").checked = false;
   $("#limitOnePerOrder").checked = true;
   setSelectedCollections([]);
   updateTriggerFields();
+  updateGiftPreview();
 }
 
 async function saveRule(event) {
@@ -402,6 +406,7 @@ function formRule() {
     subtotalAmount: Number($("#subtotalAmount").value || 0),
     triggerQuantity: Number($("#triggerQuantity").value || 1),
     giftVariantId: $("#giftVariantId").value,
+    giftSelectionMode: $("#giftSelectionMode").value,
     giftProductId: $("#giftProductId").value,
     giftTitle: $("#giftTitle").value,
     giftValue: Number($("#giftValue").value || 0),
@@ -420,6 +425,7 @@ function updateGiftPreview() {
   const value = Number($("#giftValue").value || 0);
   $("#previewGiftTitle").textContent = $("#giftTitle").value || "Free gift";
   $("#previewGiftValue").textContent = value > 0 ? ` - Worth \u20B9${value}` : "";
+  $("#previewGiftButton").textContent = $("#giftSelectionMode").value === "choose_variant" ? "Choose gift size" : "Added automatically";
 }
 
 async function loadSettings() {
