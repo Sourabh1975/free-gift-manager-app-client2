@@ -22,6 +22,7 @@
     lastCart: null,
     internalMutations: 0,
     directCheckoutBusy: false,
+    choiceBusy: false,
     failedGiftSignature: "",
     giftRetryAfter: 0,
     selectedGiftVariants: {}
@@ -47,10 +48,10 @@
       document.addEventListener("input", onPossibleCartChange, true);
       document.addEventListener("change", onGiftChoiceChange, true);
       document.addEventListener("click", onGiftChoiceClick, true);
-      document.addEventListener("cart:refresh", checkCart);
-      document.addEventListener("cart:updated", checkCart);
+      document.addEventListener("cart:refresh", onExternalCartEvent);
+      document.addEventListener("cart:updated", onExternalCartEvent);
       hookCartRequests();
-      setInterval(checkCart, 5000);
+      setInterval(checkCart, 15000);
     }).catch(function (error) {
       diagnostics.status = "startup-error";
       diagnostics.error = error.message || String(error);
@@ -81,6 +82,11 @@
     var select = event.target && event.target.closest && event.target.closest("[data-fgm-choice-select]");
     if (!select) return;
     state.selectedGiftVariants[String(select.getAttribute("data-fgm-choice-select"))] = String(select.value || "");
+  }
+
+  function onExternalCartEvent(event) {
+    if (event && event.detail && event.detail.source === "free-gift-manager") return;
+    scheduleCheck(120);
   }
 
   function installDirectCheckoutHandler() {
@@ -511,7 +517,7 @@
 
   async function onGiftChoiceClick(event) {
     var button = event.target && event.target.closest && event.target.closest("[data-fgm-add-choice]");
-    if (!button || !state.config || state.busy) return;
+    if (!button || !state.config || state.choiceBusy) return;
     event.preventDefault();
     event.stopPropagation();
 
@@ -527,17 +533,35 @@
 
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
+    state.choiceBusy = true;
+    var ownsBusyLock = false;
 
     try {
-      var cart = state.lastCart || await getCart();
+      await waitForCartCheckToFinish(1200);
+      if (state.busy) throw new Error("Cart is still updating. Please try again.");
+      state.busy = true;
+      ownsBusyLock = true;
+      state.pending = false;
+      var cart = await getCart();
+      state.lastCart = cart;
       var changed = await ensureGift(cart, Object.assign({}, rule, { giftVariantId: variantId }));
       if (changed) refreshCartAfterMutation();
-      scheduleCheck(300);
+      scheduleCheck(120);
     } catch (error) {
       if (state.config.settings && state.config.settings.debugMode) console.warn("[FreeGiftManager] Gift choice failed", error);
     } finally {
+      if (ownsBusyLock) state.busy = false;
+      state.choiceBusy = false;
       button.disabled = false;
       button.removeAttribute("aria-busy");
+      if (state.pending) scheduleCheck(120);
+    }
+  }
+
+  async function waitForCartCheckToFinish(timeout) {
+    var startedAt = Date.now();
+    while (state.busy && Date.now() - startedAt < timeout) {
+      await new Promise(function (resolve) { window.setTimeout(resolve, 50); });
     }
   }
 
@@ -1068,7 +1092,7 @@
         var url = typeof request === "string" ? request : request && request.url;
         var internalMutation = state.internalMutations > 0;
         var result = originalFetch.apply(this, arguments);
-        if (!internalMutation && isCartMutation(url)) result.finally(function () { scheduleCheck(450); });
+        if (!internalMutation && isCartMutation(url)) result.finally(function () { scheduleCheck(120); });
         return result;
       };
     }
@@ -1081,7 +1105,7 @@
     };
     XMLHttpRequest.prototype.send = function () {
       if (isCartMutation(this.__freeGiftManagerCartUrl)) {
-        this.addEventListener("loadend", function () { scheduleCheck(450); });
+        this.addEventListener("loadend", function () { scheduleCheck(120); });
       }
       return originalSend.apply(this, arguments);
     };
