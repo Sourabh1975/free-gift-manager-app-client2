@@ -564,8 +564,13 @@
       var choiceGift = findManagedGiftForRule(cart, rule);
       box.innerHTML = [
         '<div style="border:1px solid #ead1cc;background:#fff7f3;border-radius:8px;padding:12px;margin:12px 0;font-family:inherit;">',
+        '<div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;">',
+        giftImageHtml(rule),
+        '<div style="min-width:0;">',
         '<div style="font-weight:800;color:#8f1018;margin-bottom:4px;">' + escapeHtml(rule.messageUnlocked) + '</div>',
         choiceGift ? '<div style="font-size:13px;color:#4b3937;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>' : giftChoiceHtml(rule),
+        '</div>',
+        '</div>',
         '<div style="height:7px;background:#efd8d4;border-radius:99px;overflow:hidden;margin-top:10px;"><span style="display:block;height:100%;width:100%;background:#8f1018;"></span></div>',
         '</div>'
       ].join("");
@@ -590,11 +595,28 @@
 
     box.innerHTML = [
       '<div style="border:1px solid #ead1cc;background:#fff7f3;border-radius:8px;padding:12px;margin:12px 0;font-family:inherit;">',
+      '<div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;">',
+      giftImageHtml(rule),
+      '<div style="min-width:0;">',
       '<div style="font-weight:800;color:#8f1018;margin-bottom:4px;">' + escapeHtml(matchedRule ? rule.messageUnlocked : rule.messageLocked) + '</div>',
       '<div style="font-size:13px;color:#4b3937;">' + (matchedRule ? escapeHtml(giftDisplayTitle(rule)) : lockedDetailHtml) + '</div>',
+      '</div>',
+      '</div>',
       '<div style="height:7px;background:#efd8d4;border-radius:99px;overflow:hidden;margin-top:10px;"><span style="display:block;height:100%;width:' + percent + '%;background:#8f1018;"></span></div>',
       '</div>'
     ].join("");
+  }
+
+  function giftImageHtml(rule) {
+    var image = usableGiftImage(rule && rule.giftImage);
+    if (!image) return "";
+    return '<img src="' + escapeAttributeValue(image) + '" alt="' + escapeAttributeValue(rule.giftTitle || "Free gift") + '" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:#fff;border:1px solid #efd8d4;">';
+  }
+
+  function usableGiftImage(value) {
+    var image = String(value || "").trim();
+    if (!image || image.slice(-4) === "/...") return "";
+    return /^https?:\/\//i.test(image) ? image : "";
   }
 
   function collectionChipsHtml(rule) {

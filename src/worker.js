@@ -414,13 +414,26 @@ async function storefrontConfig(request, env) {
     ORDER BY priority ASC, id DESC
   `).bind(shop).all();
 
-  const rules = await hydrateCollectionRules(env, shop, rows.results.map(ruleFromRow));
+  const collectionRules = await hydrateCollectionRules(env, shop, rows.results.map(ruleFromRow));
+  const rules = await hydrateGiftRules(env, shop, collectionRules);
 
   return json({
     enabled: true,
     settings,
     rules
   }, 200, corsHeaders());
+}
+
+async function hydrateGiftRules(env, shop, rules) {
+  return Promise.all(rules.map(async (rule) => {
+    if (usableGiftImage(rule.giftImage)) return rule;
+    try {
+      return await resolveGiftConfig(env, shop, rule);
+    } catch (error) {
+      console.warn("Gift image hydration failed", error.message);
+      return rule;
+    }
+  }));
 }
 
 function cleanRule(body) {
@@ -531,24 +544,38 @@ async function resolveGiftConfig(env, shop, rule) {
   if (rule.giftSelectionMode === "choose_variant") {
     const variants = await getGiftProductVariants(env, shop, rule.giftProductId);
     const selectedVariantId = rule.giftVariantId || variants.find((item) => item.available !== false)?.id || variants[0]?.id || "";
-    return { ...rule, giftVariantId: selectedVariantId, giftVariantOptions: variants };
+    return {
+      ...rule,
+      giftVariantId: selectedVariantId,
+      giftImage: usableGiftImage(rule.giftImage) || variants.find((item) => item.image)?.image || variants[0]?.image || "",
+      giftVariantOptions: variants
+    };
   }
 
-  if (rule.giftVariantId) return rule;
+  if (rule.giftVariantId && usableGiftImage(rule.giftImage)) return rule;
 
   const session = await env.DB.prepare("SELECT access_token FROM shop_sessions WHERE shop = ?").bind(shop).first();
   let variantId = "";
+  let variants = [];
 
   if (session?.access_token) {
     try {
-      variantId = await getAdminProductVariant(shop, session.access_token, rule.giftProductId);
+      variants = await getAdminProductVariants(shop, session.access_token, rule.giftProductId);
+      variantId = rule.giftVariantId || pickVariantId(variants);
     } catch (error) {
       console.warn("Admin product lookup failed; trying published product catalog", error.message);
     }
   }
 
-  if (!variantId) variantId = await getPublicProductVariant(shop, rule.giftProductId);
-  return { ...rule, giftVariantId: variantId };
+  if (!variantId) {
+    variants = await getPublicProductVariants(shop, rule.giftProductId);
+    variantId = rule.giftVariantId || pickVariantId(variants);
+  }
+  return {
+    ...rule,
+    giftVariantId: variantId,
+    giftImage: usableGiftImage(rule.giftImage) || variants.find((item) => item.image)?.image || variants[0]?.image || ""
+  };
 }
 
 async function getGiftProductVariants(env, shop, productId) {
@@ -570,9 +597,7 @@ async function getGiftProductVariants(env, shop, productId) {
 
 async function getAdminProductVariant(shop, accessToken, productId) {
   const variants = await getAdminProductVariants(shop, accessToken, productId);
-  const variant = variants.find((item) => item.available !== false) || variants[0];
-  if (!variant?.id) throw new Error("Gift product has no variants");
-  return String(variant.id);
+  return pickVariantId(variants);
 }
 
 async function getAdminProductVariants(shop, accessToken, productId) {
@@ -580,8 +605,9 @@ async function getAdminProductVariants(shop, accessToken, productId) {
     query GiftProduct($id: ID!) {
       product(id: $id) {
         title
+        featuredImage { url }
         variants(first: 100) {
-          nodes { id title availableForSale selectedOptions { name value } }
+          nodes { id title availableForSale image { url } selectedOptions { name value } }
         }
       }
     }
@@ -601,19 +627,19 @@ async function getAdminProductVariants(shop, accessToken, productId) {
 
   const payload = await response.json();
   if (payload.errors?.length) throw new Error(payload.errors[0].message || "Gift product lookup failed");
+  const productImage = payload.data?.product?.featuredImage?.url || "";
   const variants = payload.data?.product?.variants?.nodes || [];
   return variants.map((variant) => ({
     id: String(variant.id || "").split("/").pop(),
     title: variant.title || optionTitle(variant.selectedOptions),
+    image: variant.image?.url || productImage,
     available: variant.availableForSale !== false
   })).filter((variant) => variant.id);
 }
 
 async function getPublicProductVariant(shop, productId) {
   const variants = await getPublicProductVariants(shop, productId);
-  const variant = variants.find((item) => item.available !== false) || variants[0];
-  if (!variant?.id) throw new Error("Gift product has no variants");
-  return String(variant.id);
+  return pickVariantId(variants);
 }
 
 async function getPublicProductVariants(shop, productId) {
@@ -633,9 +659,11 @@ async function getPublicProductVariants(shop, productId) {
     const product = products.find((item) => String(item.id) === productId);
     if (product) {
       const variants = Array.isArray(product.variants) ? product.variants : [];
+      const productImage = product.image?.src || "";
       return variants.map((variant) => ({
         id: String(variant.id || ""),
         title: variant.title || [variant.option1, variant.option2, variant.option3].filter(Boolean).join(" / "),
+        image: variant.featured_image?.src || productImage,
         available: variant.available !== false
       })).filter((variant) => variant.id);
     }
@@ -649,6 +677,18 @@ async function getPublicProductVariants(shop, productId) {
 function optionTitle(options) {
   const title = (options || []).map((option) => option.value).filter(Boolean).join(" / ");
   return title || "Default Title";
+}
+
+function pickVariantId(variants) {
+  const variant = variants.find((item) => item.available !== false) || variants[0];
+  if (!variant?.id) throw new Error("Gift product has no variants");
+  return String(variant.id);
+}
+
+function usableGiftImage(value) {
+  const image = String(value || "").trim();
+  if (!image || image.endsWith("/...")) return "";
+  return /^https?:\/\//i.test(image) ? image : "";
 }
 
 async function hydrateCollectionRules(env, shop, rules) {

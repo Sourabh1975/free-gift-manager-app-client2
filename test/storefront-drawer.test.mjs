@@ -33,15 +33,34 @@ for (const theme of ["Dawn", "Horizon", "custom selector"]) {
     if (theme === "custom selector") api.state.config.settings.cartDrawerSelector = "#CartDrawer";
     const rule = {
       id: 2, giftSelectionMode: "choose_variant", giftProductId: "100",
-      giftTitle: "T-shirt", messageUnlocked: "Unlocked",
+      giftTitle: "T-shirt", giftImage: "https://cdn.shopify.com/s/files/gift.jpg", messageUnlocked: "Unlocked",
       giftVariantOptions: [{ id: "201", title: "M", available: true }]
     };
     api.renderMessage(rule, { items: [] }, rule);
     assert.equal(api.getHost(), panel);
+    assert.match(panel.box.innerHTML, /gift\.jpg/);
     assert.match(panel.box.innerHTML, /data-fgm-choice-select/);
     assert.match(panel.box.innerHTML, /value="201">M/);
   });
 }
+
+test("gift card skips placeholder image URLs", () => {
+  const panel = { prepend(box) { box.parentNode = this; this.box = box; } };
+  const document = {
+    body: { classList: { contains() { return false; } } },
+    querySelector(selector) {
+      return selector === "cart-drawer" ? { querySelector() { return panel; } } : null;
+    },
+    createElement() { return { setAttribute() {}, innerHTML: "" }; }
+  };
+  const api = harness(document);
+  const rule = {
+    id: 2, giftTitle: "T-shirt", giftImage: "https://cdn.shopify.com/...",
+    messageUnlocked: "Unlocked", giftSelectionMode: "auto"
+  };
+  api.renderMessage(rule, { items: [] }, rule);
+  assert.doesNotMatch(panel.box.innerHTML, /<img/);
+});
 
 test("Dawn: gift mutation refreshes drawer sections without reloading the page", async () => {
   let rendered;
