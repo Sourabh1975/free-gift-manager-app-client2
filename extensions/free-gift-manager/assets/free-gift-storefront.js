@@ -837,6 +837,10 @@
     var target = event.target;
     var row = target && target.closest && target.closest('[data-fgm-gift-line="true"]');
     if (!row) return;
+    if (isRemoveControl(target)) {
+      scheduleCheck(250);
+      return;
+    }
     var control = target.closest(
       '[data-cart-update], [data-cart-quantity], [data-cart-remove-quantity], [name="updates[]"], ' +
       'quantity-input button, .quantity button, .previewCartItem-qty .btn-quantity, ' +
@@ -847,6 +851,15 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     scheduleCheck(50);
+  }
+
+  function isRemoveControl(target) {
+    if (!target || !target.closest) return false;
+    return Boolean(target.closest(
+      'cart-remove-button, .cart-remove-button, [data-cart-remove], .previewCartItem-remove, ' +
+      'button[name="remove"], button[aria-label*="Remove"], button[aria-label*="remove"], ' +
+      'a[href*="/cart/change"][href*="quantity=0"]'
+    ));
   }
 
   function applyGiftControlLocks(cart) {

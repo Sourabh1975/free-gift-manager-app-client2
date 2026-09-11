@@ -7,12 +7,12 @@ const source = await readFile(new URL("../public/free-gift-storefront.js", impor
 
 function harness(document, fetch = async () => { throw new Error("Unexpected fetch"); }) {
   const context = {
-    document, fetch, console,
+    document, fetch, console, setTimeout, clearTimeout,
     Shopify: { shop: "test.myshopify.com" },
     FreeGiftManagerAppUrl: "https://app.example"
   };
   context.window = context;
-  vm.runInNewContext(source.replace("  init();", "  window.testApi = { state, getHost, renderMessage, refreshThemeCartDrawer, installGiftControlGuard };"), context);
+  vm.runInNewContext(source.replace("  init();", "  window.testApi = { state, getHost, renderMessage, refreshThemeCartDrawer, installGiftControlGuard, blockProtectedGiftControl };"), context);
   context.testApi.state.config = { settings: {} };
   return context.testApi;
 }
@@ -80,6 +80,34 @@ test("gift control guard leaves gift remove buttons available for size changes",
   api.installGiftControlGuard();
   assert.doesNotMatch(document.head.appended.textContent, /cart-remove-button|previewCartItem-remove|data-cart-remove\]/);
   assert.doesNotMatch(document.head.appended.textContent, /cart-item__quantity-wrapper|quantity-popover-container/);
+});
+
+test("gift remove clicks are not blocked by the quantity guard", () => {
+  let prevented = false;
+  let stopped = false;
+  const row = {};
+  const removeButton = {};
+  const target = {
+    closest(selector) {
+      if (selector === '[data-fgm-gift-line="true"]') return row;
+      if (selector.includes('cart-remove-button')) return removeButton;
+      if (selector.includes('quantity-popover-container button')) return removeButton;
+      return null;
+    }
+  };
+  const api = harness({
+    body: { classList: { contains() { return false; } } },
+    querySelector() { return null; },
+    createElement() { return { setAttribute() {}, innerHTML: "" }; }
+  });
+  api.state.config.settings = { lockGiftQuantity: true };
+  api.blockProtectedGiftControl({
+    target,
+    preventDefault() { prevented = true; },
+    stopImmediatePropagation() { stopped = true; }
+  });
+  assert.equal(prevented, false);
+  assert.equal(stopped, false);
 });
 
 test("Dawn: gift mutation refreshes drawer sections without reloading the page", async () => {
