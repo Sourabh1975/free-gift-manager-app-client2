@@ -12,7 +12,7 @@ function harness(document, fetch = async () => { throw new Error("Unexpected fet
     FreeGiftManagerAppUrl: "https://app.example"
   };
   context.window = context;
-  vm.runInNewContext(source.replace("  init();", "  window.testApi = { state, getHost, renderMessage, refreshThemeCartDrawer };"), context);
+  vm.runInNewContext(source.replace("  init();", "  window.testApi = { state, getHost, renderMessage, refreshThemeCartDrawer, installGiftControlGuard };"), context);
   context.testApi.state.config = { settings: {} };
   return context.testApi;
 }
@@ -60,6 +60,25 @@ test("gift card skips placeholder image URLs", () => {
   };
   api.renderMessage(rule, { items: [] }, rule);
   assert.doesNotMatch(panel.box.innerHTML, /<img/);
+});
+
+test("gift control guard leaves gift remove buttons available for size changes", () => {
+  const document = {
+    head: { appended: null, appendChild(node) { this.appended = node; } },
+    body: { classList: { contains() { return false; } } },
+    addEventListener() {},
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+    createElement() {
+      return { setAttribute() {}, textContent: "" };
+    }
+  };
+  const api = harness(document);
+  api.state.config.settings.lockGiftQuantity = true;
+  api.state.config.enabled = true;
+  api.state.config.settings = { lockGiftQuantity: true };
+  api.installGiftControlGuard();
+  assert.doesNotMatch(document.head.appended.textContent, /cart-remove-button|previewCartItem-remove|data-cart-remove\]/);
 });
 
 test("Dawn: gift mutation refreshes drawer sections without reloading the page", async () => {

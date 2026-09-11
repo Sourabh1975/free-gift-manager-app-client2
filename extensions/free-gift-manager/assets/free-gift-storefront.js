@@ -810,12 +810,8 @@
       '[data-fgm-gift-line="true"] .cart-item__quantity,',
       '[data-fgm-gift-line="true"] .cart-item__quantity-wrapper,',
       '[data-fgm-gift-line="true"] .quantity-popover-container,',
-      '[data-fgm-gift-line="true"] cart-remove-button,',
-      '[data-fgm-gift-line="true"] .cart-remove-button,',
-      '[data-fgm-gift-line="true"] [href*="/cart/change"],',
       '[data-fgm-gift-line="true"] [data-cart-update],',
-      '[data-fgm-gift-line="true"] [data-cart-remove],',
-      '[data-fgm-gift-line="true"] .previewCartItem-remove { display:none !important; }',
+      '[data-fgm-gift-line="true"] [data-cart-remove-quantity] { display:none !important; }',
       '[data-fgm-gift-line="true"] [name="updates[]"],',
       '[data-fgm-gift-line="true"] [data-cart-quantity],',
       '[data-fgm-gift-line="true"] input[type="number"] { pointer-events:none !important; }'
@@ -843,11 +839,10 @@
     var row = target && target.closest && target.closest('[data-fgm-gift-line="true"]');
     if (!row) return;
     var control = target.closest(
-      '[data-cart-update], [data-cart-quantity], [data-cart-remove], [name="updates[]"], ' +
+      '[data-cart-update], [data-cart-quantity], [data-cart-remove-quantity], [name="updates[]"], ' +
       'quantity-input button, .quantity button, .previewCartItem-qty .btn-quantity, ' +
       '.cart-item-qty .btn-quantity, [data-minus-quantity-cart], [data-plus-quantity-cart], ' +
-      '.cart-item__quantity button, .quantity-popover-container button, cart-remove-button, ' +
-      '.cart-remove-button, [href*="/cart/change"], .previewCartItem-remove'
+      '.cart-item__quantity button, .quantity-popover-container button'
     );
     if (!control) return;
     event.preventDefault();
