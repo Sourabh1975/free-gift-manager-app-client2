@@ -182,7 +182,6 @@ Required secrets:
 ```text
 SHOPIFY_API_KEY
 SHOPIFY_API_SECRET
-ADMIN_TOKEN
 ```
 
 Do not commit real secrets to GitHub.
@@ -419,4 +418,3 @@ free-gift-manager-college-report-batch-3.docx
 free-gift-manager-college-report-batch-4.docx
 free-gift-manager-college-report-batch-5.docx
 ```
-

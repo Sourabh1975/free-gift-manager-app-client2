@@ -1,7 +1,6 @@
 const params = new URLSearchParams(location.search);
 const shop = params.get("shop") || localStorage.getItem("fgm_shop") || "";
 if (shop) localStorage.setItem("fgm_shop", shop);
-let adminToken = localStorage.getItem("fgm_admin_token") || "";
 
 const state = {
   rules: [],
@@ -67,19 +66,7 @@ function api(path) {
 
 async function request(path, options = {}) {
   const headers = { ...(options.headers || {}) };
-  if (adminToken) headers["X-Admin-Token"] = adminToken;
-  let response = await fetch(api(path), { ...options, headers });
-  if (response.status === 401) {
-    const clone = response.clone();
-    const data = await clone.json().catch(() => ({}));
-    if (String(data.error || "").includes("Unauthorized")) {
-      adminToken = prompt("Enter admin token") || "";
-      localStorage.setItem("fgm_admin_token", adminToken);
-      headers["X-Admin-Token"] = adminToken;
-      response = await fetch(api(path), { ...options, headers });
-    }
-  }
-  return response;
+  return fetch(api(path), { ...options, headers });
 }
 
 function showTab(tab) {

@@ -16,7 +16,6 @@ export default {
       if (url.pathname === "/auth") return await handleAuth(request, env);
       if (url.pathname === "/auth/callback") return await handleCallback(request, env);
       if (url.pathname === "/apps/free-gifts/config") return await storefrontConfig(request, env);
-      if (url.pathname.startsWith("/api/")) requireAdminToken(request, env);
       if (url.pathname === "/api/collections" && request.method === "GET") return await listCollections(request, env);
       if (url.pathname === "/api/rules" && request.method === "GET") return await listRules(request, env);
       if (url.pathname === "/api/rules" && request.method === "POST") return await createRule(request, env);
@@ -799,17 +798,6 @@ function requireShop(request) {
   const shop = normalizeShop(url.searchParams.get("shop"));
   if (!shop) throw new Error("Missing or invalid shop");
   return shop;
-}
-
-function requireAdminToken(request, env) {
-  if (!env.ADMIN_TOKEN) return;
-  const token = (request.headers.get("X-Admin-Token") || "").trim();
-  const expected = String(env.ADMIN_TOKEN || "").trim();
-  if (!timingSafeEqual(token, expected)) {
-    const error = new Error("Unauthorized admin request");
-    error.status = 401;
-    throw error;
-  }
 }
 
 function normalizeShop(shop) {

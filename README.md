@@ -48,7 +48,6 @@ npm run db:init
 ```bash
 npx wrangler secret put SHOPIFY_API_KEY
 npx wrangler secret put SHOPIFY_API_SECRET
-npx wrangler secret put ADMIN_TOKEN
 ```
 
 For local development, create `.dev.vars`:
@@ -56,7 +55,6 @@ For local development, create `.dev.vars`:
 ```env
 SHOPIFY_API_KEY=your_api_key
 SHOPIFY_API_SECRET=your_api_secret
-ADMIN_TOKEN=change_me_for_admin_dashboard
 APP_URL=http://localhost:8787
 SHOPIFY_SCOPES=read_products
 ```
