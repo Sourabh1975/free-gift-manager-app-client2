@@ -18,6 +18,7 @@
     busy: false,
     pending: false,
     refreshing: false,
+    refreshQueued: false,
     config: null,
     lastCart: null,
     internalMutations: 0,
@@ -25,7 +26,8 @@
     choiceBusy: false,
     failedGiftSignature: "",
     giftRetryAfter: 0,
-    selectedGiftVariants: {}
+    selectedGiftVariants: {},
+    nextCheckAt: 0
   };
 
   if (!appUrl || !shop) {
@@ -45,7 +47,6 @@
       document.addEventListener("submit", onPossibleCartChange, true);
       document.addEventListener("click", onPossibleCartChange, true);
       document.addEventListener("change", onPossibleCartChange, true);
-      document.addEventListener("input", onPossibleCartChange, true);
       document.addEventListener("change", onGiftChoiceChange, true);
       document.addEventListener("click", onGiftChoiceClick, true);
       document.addEventListener("cart:refresh", onExternalCartEvent);
@@ -75,7 +76,7 @@
         target.closest('.quantity')
       )
     );
-    if (maybeCartAction) scheduleCheck(250);
+    if (maybeCartAction) scheduleCheck(500);
   }
 
   function onGiftChoiceChange(event) {
@@ -86,7 +87,7 @@
 
   function onExternalCartEvent(event) {
     if (event && event.detail && event.detail.source === "free-gift-manager") return;
-    scheduleCheck(120);
+    scheduleCheck(350);
   }
 
   function installDirectCheckoutHandler() {
@@ -340,15 +341,15 @@
             cart = await getCart();
           }
         }
-        if (unauthorizedGiftsRemoved || removedUnexpected || giftChanged) refreshCartAfterMutation();
+        if (unauthorizedGiftsRemoved || removedUnexpected || giftChanged) await refreshCartAfterMutation();
       } else if (matchedRules.length) {
         var removedMatchedUnexpected = await removeUnexpectedGifts(cart, matchedRules);
-        if (unauthorizedGiftsRemoved || removedMatchedUnexpected) refreshCartAfterMutation();
+        if (unauthorizedGiftsRemoved || removedMatchedUnexpected) await refreshCartAfterMutation();
       } else if (state.config.settings && state.config.settings.removeWhenIneligible) {
         var giftsRemoved = await removeManagedGifts(cart);
-        if (unauthorizedGiftsRemoved || giftsRemoved) refreshCartAfterMutation();
+        if (unauthorizedGiftsRemoved || giftsRemoved) await refreshCartAfterMutation();
       } else if (unauthorizedGiftsRemoved) {
-        refreshCartAfterMutation();
+        await refreshCartAfterMutation();
       }
     } catch (error) {
       diagnostics.status = "cart-error";
@@ -537,7 +538,12 @@
     var ownsBusyLock = false;
 
     try {
-      await waitForCartCheckToFinish(1200);
+      clearGiftFailure();
+      await waitForCartCheckToFinish(2500);
+      if (state.busy) {
+        state.pending = true;
+        await waitForCartCheckToFinish(2500);
+      }
       if (state.busy) throw new Error("Cart is still updating. Please try again.");
       state.busy = true;
       ownsBusyLock = true;
@@ -545,8 +551,8 @@
       var cart = await getCart();
       state.lastCart = cart;
       var changed = await ensureGift(cart, Object.assign({}, rule, { giftVariantId: variantId }));
-      if (changed) refreshCartAfterMutation();
-      scheduleCheck(120);
+      if (changed) await refreshCartAfterMutation();
+      scheduleCheck(250);
     } catch (error) {
       if (state.config.settings && state.config.settings.debugMode) console.warn("[FreeGiftManager] Gift choice failed", error);
     } finally {
@@ -554,7 +560,7 @@
       state.choiceBusy = false;
       button.disabled = false;
       button.removeAttribute("aria-busy");
-      if (state.pending) scheduleCheck(120);
+      if (state.pending) scheduleCheck(250);
     }
   }
 
@@ -783,29 +789,51 @@
     return drawer.querySelector(".drawer__inner, .cart-drawer__inner, .cart-drawer__content, .halo-sidebar-wrapper, [role='dialog'], dialog") || drawer;
   }
 
-  function refreshCartAfterMutation() {
-    if (state.refreshing) return;
+  async function refreshCartAfterMutation() {
+    if (state.refreshing) {
+      state.refreshQueued = true;
+      return false;
+    }
     state.refreshing = true;
 
     if (window.location.pathname.replace(/\/$/, "") === "/cart" || document.body.classList.contains("template-cart")) {
       window.setTimeout(function () { window.location.reload(); }, 120);
-      return;
+      return true;
     }
 
-    getCart().then(async function (cart) {
+    try {
+      var cart = await getCart();
+      state.lastCart = cart;
       var drawerUpdated = await refreshThemeCartDrawer(cart);
       applyGiftControlLocks(cart);
       if (!drawerUpdated) updateCartCount(cart);
-      document.dispatchEvent(new CustomEvent("cart:updated", { detail: { source: "free-gift-manager", cart: cart } }));
-      document.dispatchEvent(new CustomEvent("cart:refresh", { detail: { source: "free-gift-manager", cart: cart } }));
-    }).catch(function (error) {
+      dispatchCartEvent("cart:updated", cart);
+      dispatchCartEvent("cart:refresh", cart);
+      dispatchCartEvent("cart:change", cart);
+      return drawerUpdated;
+    } catch (error) {
       console.warn("[FreeGiftManager] Drawer refresh failed", error);
-    }).finally(function () {
+      return false;
+    } finally {
       window.setTimeout(function () {
         state.refreshing = false;
-        scheduleCheck(500);
-      }, 500);
-    });
+        if (state.refreshQueued) {
+          state.refreshQueued = false;
+          refreshCartAfterMutation();
+        } else {
+          scheduleCheck(300);
+        }
+      }, 200);
+    }
+  }
+
+  function dispatchCartEvent(name, cart) {
+    if (typeof CustomEvent !== "function") return;
+    var event = new CustomEvent(name, { detail: { source: "free-gift-manager", cart: cart } });
+    document.dispatchEvent(event);
+    if (window.dispatchEvent) {
+      window.dispatchEvent(new CustomEvent(name, { detail: { source: "free-gift-manager", cart: cart } }));
+    }
   }
 
   async function refreshThemeCartDrawer(cart) {
@@ -980,8 +1008,16 @@
   }
 
   function scheduleCheck(delay) {
+    var wait = delay || 700;
+    var nextRunAt = Date.now() + wait;
+    if (state.timer && state.nextCheckAt && state.nextCheckAt <= nextRunAt) return;
     window.clearTimeout(state.timer);
-    state.timer = window.setTimeout(checkCart, delay || 700);
+    state.nextCheckAt = nextRunAt;
+    state.timer = window.setTimeout(function () {
+      state.timer = null;
+      state.nextCheckAt = 0;
+      checkCart();
+    }, wait);
   }
 
   function giftAttemptSignature(cart, rule) {
@@ -1092,7 +1128,7 @@
         var url = typeof request === "string" ? request : request && request.url;
         var internalMutation = state.internalMutations > 0;
         var result = originalFetch.apply(this, arguments);
-        if (!internalMutation && isCartMutation(url)) result.finally(function () { scheduleCheck(120); });
+        if (!internalMutation && isCartMutation(url)) result.finally(function () { scheduleCheck(250); });
         return result;
       };
     }
@@ -1105,7 +1141,7 @@
     };
     XMLHttpRequest.prototype.send = function () {
       if (isCartMutation(this.__freeGiftManagerCartUrl)) {
-        this.addEventListener("loadend", function () { scheduleCheck(120); });
+        this.addEventListener("loadend", function () { scheduleCheck(250); });
       }
       return originalSend.apply(this, arguments);
     };
