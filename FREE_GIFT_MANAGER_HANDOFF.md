@@ -22,7 +22,7 @@ https://free-gift-manager.houseofsandhya.workers.dev
 
 ## Project Summary
 
-Free Gift Manager is a Shopify app MVP built for the Brown Anatomy Shopify store. The app lets the merchant create free gift rules from an embedded Shopify admin dashboard. On the storefront, the app checks the customer cart and automatically adds or removes free gifts based on rule conditions.
+Free Gift Manager is a Shopify app MVP built for Shopify merchants. The app lets the merchant create free gift rules from an embedded Shopify admin dashboard. On the storefront, the app checks the customer cart and automatically adds or removes free gifts based on rule conditions.
 
 The app currently supports:
 

@@ -1,6 +1,6 @@
 # Free Gift Manager MVP
 
-Shopify free gift app MVP for Brown Anatomy.
+Shopify free gift app MVP for any Shopify merchant.
 
 ## Features in this MVP
 

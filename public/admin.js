@@ -18,7 +18,7 @@ init();
 function init() {
   $("#shopLabel").textContent = shop ? `Connected store: ${shop}` : "Add ?shop=your-store.myshopify.com to connect.";
   $("#installButton").addEventListener("click", () => {
-    const targetShop = shop || prompt("Enter shop domain, e.g. brownanatomy.myshopify.com");
+    const targetShop = shop || prompt("Enter shop domain, e.g. your-store.myshopify.com");
     if (targetShop) location.href = `/auth?shop=${encodeURIComponent(targetShop)}`;
   });
 
