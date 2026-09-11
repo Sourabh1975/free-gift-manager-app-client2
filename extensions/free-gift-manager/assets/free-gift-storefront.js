@@ -745,6 +745,7 @@
 
     getCart().then(async function (cart) {
       var drawerUpdated = await refreshThemeCartDrawer(cart);
+      applyGiftControlLocks(cart);
       if (!drawerUpdated) updateCartCount(cart);
       document.dispatchEvent(new CustomEvent("cart:updated", { detail: { source: "free-gift-manager", cart: cart } }));
       document.dispatchEvent(new CustomEvent("cart:refresh", { detail: { source: "free-gift-manager", cart: cart } }));
@@ -806,11 +807,18 @@
       '[data-fgm-gift-line="true"] .cart-item-qty .btn-quantity,',
       '[data-fgm-gift-line="true"] [data-minus-quantity-cart],',
       '[data-fgm-gift-line="true"] [data-plus-quantity-cart],',
+      '[data-fgm-gift-line="true"] .cart-item__quantity,',
+      '[data-fgm-gift-line="true"] .cart-item__quantity-wrapper,',
+      '[data-fgm-gift-line="true"] .quantity-popover-container,',
+      '[data-fgm-gift-line="true"] cart-remove-button,',
+      '[data-fgm-gift-line="true"] .cart-remove-button,',
+      '[data-fgm-gift-line="true"] [href*="/cart/change"],',
       '[data-fgm-gift-line="true"] [data-cart-update],',
       '[data-fgm-gift-line="true"] [data-cart-remove],',
       '[data-fgm-gift-line="true"] .previewCartItem-remove { display:none !important; }',
       '[data-fgm-gift-line="true"] [name="updates[]"],',
-      '[data-fgm-gift-line="true"] [data-cart-quantity] { pointer-events:none !important; }'
+      '[data-fgm-gift-line="true"] [data-cart-quantity],',
+      '[data-fgm-gift-line="true"] input[type="number"] { pointer-events:none !important; }'
     ].join("\n");
     document.head.appendChild(style);
 
@@ -838,7 +846,8 @@
       '[data-cart-update], [data-cart-quantity], [data-cart-remove], [name="updates[]"], ' +
       'quantity-input button, .quantity button, .previewCartItem-qty .btn-quantity, ' +
       '.cart-item-qty .btn-quantity, [data-minus-quantity-cart], [data-plus-quantity-cart], ' +
-      '.previewCartItem-remove'
+      '.cart-item__quantity button, .quantity-popover-container button, cart-remove-button, ' +
+      '.cart-remove-button, [href*="/cart/change"], .previewCartItem-remove'
     );
     if (!control) return;
     event.preventDefault();
@@ -855,9 +864,10 @@
     (cart.items || []).filter(isManagedGift).forEach(function (item) {
       findGiftLineRows(item).forEach(function (row) {
         row.setAttribute("data-fgm-gift-line", "true");
-        row.querySelectorAll('[name="updates[]"], [data-cart-quantity]').forEach(function (input) {
+        row.querySelectorAll('[name="updates[]"], [data-cart-quantity], input[type="number"]').forEach(function (input) {
           input.readOnly = true;
           input.setAttribute("aria-disabled", "true");
+          if (Number(item.quantity || 0) > 0) input.value = String(item.quantity);
         });
       });
     });
@@ -870,7 +880,10 @@
     var selectors = [
       '[data-line="' + key + '"]',
       '[data-cart-item-key="' + key + '"]',
-      '[data-cart-quantity-id="' + variantId + '"]'
+      '[data-cart-quantity-id="' + variantId + '"]',
+      '[id*="' + variantId + '"]',
+      '[data-variant-id="' + variantId + '"]',
+      '[href*="variant=' + variantId + '"]'
     ];
     selectors.forEach(function (selector) {
       if (!key && selector.indexOf('data-cart-quantity-id') === -1) return;
@@ -880,12 +893,26 @@
     var rows = [];
     anchors.forEach(function (node) {
       var row = node.closest(
-        '.previewCartItem, .cart-item, .cart__item, .mini-cart__item, ' +
-        '[data-cart-item], [data-cart-item-key], tr'
+        '.previewCartItem, .cart-item, .cart__item, .mini-cart__item, .drawer__cart-item, ' +
+        'cart-drawer-item, [data-cart-item], [data-cart-item-key], tr'
       ) || node.parentElement;
       if (row && rows.indexOf(row) === -1) rows.push(row);
     });
+    if (!rows.length) {
+      document.querySelectorAll('.previewCartItem, .cart-item, .cart__item, .mini-cart__item, .drawer__cart-item, cart-drawer-item, [data-cart-item], tr').forEach(function (row) {
+        var text = normalizeText(row.textContent);
+        var title = normalizeText(item.product_title || item.title || "");
+        var hasGiftProperty = text.indexOf("gift:") !== -1 || text.indexOf("gift value") !== -1 || text.indexOf("free gift") !== -1;
+        if (title && text.indexOf(title) !== -1 && hasGiftProperty && rows.indexOf(row) === -1) {
+          rows.push(row);
+        }
+      });
+    }
     return rows;
+  }
+
+  function normalizeText(value) {
+    return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
   }
 
   function escapeAttributeValue(value) {
