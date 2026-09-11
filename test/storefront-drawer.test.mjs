@@ -173,6 +173,54 @@ test("Dawn: gift mutation refreshes drawer sections without reloading the page",
   assert.equal(rendered.sections, sections);
 });
 
+test("custom drawer: fallback refresh replaces visible Shopify cart sections", async () => {
+  const cartSection = { id: "shopify-section-cart-drawer", className: "", innerHTML: "<div>Old cart</div>", getAttribute() { return ""; } };
+  const headerSection = { id: "shopify-section-header", className: "shopify-section-header", innerHTML: "<div>Old count</div>", getAttribute() { return ""; } };
+  const document = {
+    body: { firstElementChild: null, classList: { contains() { return false; } } },
+    querySelector() { return null; },
+    querySelectorAll(selector) {
+      return selector === '[id^="shopify-section-"]' ? [cartSection, headerSection] : [];
+    },
+    getElementById(id) {
+      return { "shopify-section-cart-drawer": cartSection, "shopify-section-header": headerSection }[id] || null;
+    },
+    createElement() { return { innerHTML: "" }; }
+  };
+  class DOMParser {
+    parseFromString(html) {
+      return {
+        body: { firstElementChild: { innerHTML: html } },
+        getElementById(id) {
+          const match = html.match(new RegExp('<div id="' + id + '">([\\s\\S]*)<\\/div>'));
+          return match ? { innerHTML: match[1] } : null;
+        }
+      };
+    }
+  }
+  const context = {
+    document, console, setTimeout, clearTimeout, DOMParser,
+    fetch: async (url) => {
+      assert.equal(url, "/?sections=cart-drawer%2Cheader");
+      return {
+        ok: true,
+        json: async () => ({
+          "cart-drawer": '<div id="shopify-section-cart-drawer"><div>New gift line</div></div>',
+          header: '<div id="shopify-section-header"><div>New count</div></div>'
+        })
+      };
+    },
+    Shopify: { shop: "test.myshopify.com" },
+    FreeGiftManagerAppUrl: "https://app.example"
+  };
+  context.window = context;
+  vm.runInNewContext(source.replace("  init();", "  window.testApi = { state, refreshThemeCartDrawer };"), context);
+
+  assert.equal(await context.testApi.refreshThemeCartDrawer({ item_count: 2 }), true);
+  assert.match(cartSection.innerHTML, /New gift line/);
+  assert.match(headerSection.innerHTML, /New count/);
+});
+
 test("public and extension storefront scripts stay identical", async () => {
   assert.equal(await readFile(new URL("../extensions/free-gift-manager/assets/free-gift-storefront.js", import.meta.url), "utf8"), source);
 });

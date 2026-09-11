@@ -859,7 +859,71 @@
       drawer.renderContents({ sections: sections });
       return true;
     }
-    return false;
+    return refreshVisibleCartSections();
+  }
+
+  async function refreshVisibleCartSections() {
+    var sectionIds = cartSectionIds();
+    if (!sectionIds.length) return false;
+
+    var response = await fetch("/?sections=" + encodeURIComponent(sectionIds.join(",")), {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error("Cart section fallback failed: " + response.status);
+    var sections = await response.json();
+    var changed = false;
+    sectionIds.forEach(function (id) {
+      if (typeof sections[id] === "string") changed = replaceShopifySection(id, sections[id]) || changed;
+    });
+    return changed;
+  }
+
+  function cartSectionIds() {
+    if (typeof document.getElementById !== "function") return [];
+    var ids = [
+      "cart-drawer",
+      "cart-icon-bubble",
+      "cart-notification-product",
+      "cart-notification-button",
+      "main-cart-items",
+      "main-cart-footer"
+    ];
+    if (document.querySelectorAll) {
+      document.querySelectorAll('[id^="shopify-section-"]').forEach(function (section) {
+        var id = String(section.id || "").replace(/^shopify-section-/, "");
+        var signal = [
+          section.id,
+          section.className,
+          section.getAttribute && section.getAttribute("data-section-type"),
+          section.getAttribute && section.getAttribute("data-section-id")
+        ].join(" ").toLowerCase();
+        if (id && /cart|drawer|header/.test(signal) && ids.indexOf(id) === -1) ids.push(id);
+      });
+    }
+    return ids.filter(function (id) { return !!document.getElementById("shopify-section-" + id); });
+  }
+
+  function replaceShopifySection(id, html) {
+    var existing = document.getElementById("shopify-section-" + id);
+    if (!existing) return false;
+    var parsed = sectionHtmlElement(id, html);
+    existing.innerHTML = parsed ? parsed.innerHTML : html;
+    return true;
+  }
+
+  function sectionHtmlElement(id, html) {
+    if (typeof DOMParser === "function") {
+      var parsedDocument = new DOMParser().parseFromString(html, "text/html");
+      return parsedDocument.getElementById("shopify-section-" + id) || parsedDocument.body.firstElementChild;
+    }
+    var template = document.createElement("template");
+    if (!template || !("innerHTML" in template)) return null;
+    template.innerHTML = html;
+    if (template.content && template.content.querySelector) {
+      return template.content.querySelector("#shopify-section-" + id) || template.content.firstElementChild;
+    }
+    return null;
   }
 
   function updateCartCount(cart) {
