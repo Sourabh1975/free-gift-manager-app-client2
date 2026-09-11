@@ -2,8 +2,18 @@
   // This app replaces the theme's legacy Glaze auto-gift engine when both are installed.
   window.__glazeGiftSimpleLoaded = true;
 
-  var appUrl = window.FreeGiftManagerAppUrl || "";
+  var appUrl = String(window.FreeGiftManagerAppUrl || "").trim();
   var shop = window.Shopify && Shopify.shop;
+  var diagnostics = window.FreeGiftManagerDiagnostics = {
+    version: "drawer-diagnostics-1",
+    appUrl: appUrl,
+    shop: shop || "",
+    status: "starting",
+    ruleCount: 0,
+    matchedRuleIds: [],
+    widgetMounted: false,
+    error: ""
+  };
   var state = {
     busy: false,
     pending: false,
@@ -16,7 +26,12 @@
     giftRetryAfter: 0
   };
 
-  if (!appUrl || !shop) return;
+  if (!appUrl || !shop) {
+    diagnostics.status = "setup-error";
+    diagnostics.error = !appUrl ? "App embed URL is missing" : "Shopify shop identity is missing";
+    console.warn("[FreeGiftManager]", diagnostics.error);
+    return;
+  }
 
   init();
 
@@ -34,6 +49,10 @@
       document.addEventListener("cart:updated", checkCart);
       hookCartRequests();
       setInterval(checkCart, 5000);
+    }).catch(function (error) {
+      diagnostics.status = "startup-error";
+      diagnostics.error = error.message || String(error);
+      console.warn("[FreeGiftManager] Startup failed", error);
     });
   }
 
@@ -255,8 +274,13 @@
   }
 
   async function loadConfig() {
+    diagnostics.status = "loading-config";
     var res = await fetch(appUrl.replace(/\/$/, "") + "/apps/free-gifts/config?shop=" + encodeURIComponent(shop));
+    if (!res.ok) throw new Error("Gift config request failed: " + res.status);
     state.config = await res.json();
+    if (!Array.isArray(state.config.rules)) throw new Error("Gift config response has no rules list");
+    diagnostics.ruleCount = state.config.rules.length;
+    diagnostics.status = state.config.enabled ? "ready" : "disabled";
   }
 
   async function checkCart() {
@@ -279,6 +303,9 @@
       state.lastCart = cart;
       applyGiftControlLocks(cart);
       var matchedRules = rules.filter(function (rule) { return matchesRule(rule, cart); });
+      diagnostics.matchedRuleIds = matchedRules.map(function (rule) { return rule.id; });
+      diagnostics.status = "cart-checked";
+      diagnostics.error = "";
       var expectedGiftRules = matchedRules.filter(function (rule) {
         return rule.autoAdd && !isChoiceGiftRule(rule);
       });
@@ -309,6 +336,8 @@
         refreshCartAfterMutation();
       }
     } catch (error) {
+      diagnostics.status = "cart-error";
+      diagnostics.error = error.message || String(error);
       if (state.config.settings && state.config.settings.debugMode) console.warn("[FreeGiftManager]", error);
     } finally {
       state.busy = false;
@@ -514,6 +543,8 @@
     if (box.parentNode !== host) {
       host.prepend(box);
     }
+    diagnostics.widgetMounted = box.parentNode === host;
+    diagnostics.host = host.tagName || "unknown";
 
     var rule = matchedRule || firstRule;
     if (!rule) {

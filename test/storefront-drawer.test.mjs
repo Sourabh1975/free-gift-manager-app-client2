@@ -64,3 +64,26 @@ test("Dawn: gift mutation refreshes drawer sections without reloading the page",
 test("public and extension storefront scripts stay identical", async () => {
   assert.equal(await readFile(new URL("../extensions/free-gift-manager/assets/free-gift-storefront.js", import.meta.url), "utf8"), source);
 });
+
+test("startup exposes missing embed configuration without a silent exit", () => {
+  const context = { console: { warn() {} } };
+  context.window = context;
+  vm.runInNewContext(source, context);
+  assert.equal(context.FreeGiftManagerDiagnostics.status, "setup-error");
+  assert.equal(context.FreeGiftManagerDiagnostics.error, "App embed URL is missing");
+});
+
+test("startup reports a failed config response instead of silently losing all cart features", async () => {
+  const context = {
+    console: { warn() {} },
+    Shopify: { shop: "test.myshopify.com" },
+    FreeGiftManagerAppUrl: " https://app.example ",
+    fetch: async () => ({ ok: false, status: 503 })
+  };
+  context.window = context;
+  vm.runInNewContext(source, context);
+  await new Promise(setImmediate);
+  assert.equal(context.FreeGiftManagerDiagnostics.appUrl, "https://app.example");
+  assert.equal(context.FreeGiftManagerDiagnostics.status, "startup-error");
+  assert.match(context.FreeGiftManagerDiagnostics.error, /503/);
+});
