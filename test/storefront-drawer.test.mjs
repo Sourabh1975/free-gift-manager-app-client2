@@ -40,7 +40,7 @@ for (const theme of ["Dawn", "Horizon", "custom selector"]) {
     assert.equal(api.getHost(), panel);
     assert.match(panel.box.innerHTML, /gift\.jpg/);
     assert.match(panel.box.innerHTML, /data-fgm-choice-select/);
-    assert.match(panel.box.innerHTML, /value="201">M/);
+    assert.match(panel.box.innerHTML, /value="201" selected="selected">M/);
   });
 }
 
@@ -60,6 +60,30 @@ test("gift card skips placeholder image URLs", () => {
   };
   api.renderMessage(rule, { items: [] }, rule);
   assert.doesNotMatch(panel.box.innerHTML, /<img/);
+});
+
+test("gift size selector preserves the selected variant across re-renders", () => {
+  const panel = { prepend(box) { box.parentNode = this; this.box = box; } };
+  const document = {
+    body: { classList: { contains() { return false; } } },
+    querySelector(selector) {
+      return selector === "cart-drawer" ? { querySelector() { return panel; } } : null;
+    },
+    createElement() { return { setAttribute() {}, innerHTML: "" }; }
+  };
+  const api = harness(document);
+  api.state.selectedGiftVariants["2"] = "202";
+  const rule = {
+    id: 2, giftSelectionMode: "choose_variant", giftProductId: "100",
+    giftTitle: "T-shirt", giftImage: "https://cdn.shopify.com/s/files/xs.jpg", messageUnlocked: "Unlocked",
+    giftVariantOptions: [
+      { id: "201", title: "XS", image: "https://cdn.shopify.com/s/files/xs.jpg", available: true },
+      { id: "202", title: "S", image: "https://cdn.shopify.com/s/files/s.jpg", available: true }
+    ]
+  };
+  api.renderMessage(rule, { items: [] }, rule);
+  assert.match(panel.box.innerHTML, /value="202" selected="selected">S/);
+  assert.match(panel.box.innerHTML, /s\.jpg/);
 });
 
 test("gift control guard leaves gift remove buttons available for size changes", () => {

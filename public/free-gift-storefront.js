@@ -23,7 +23,8 @@
     internalMutations: 0,
     directCheckoutBusy: false,
     failedGiftSignature: "",
-    giftRetryAfter: 0
+    giftRetryAfter: 0,
+    selectedGiftVariants: {}
   };
 
   if (!appUrl || !shop) {
@@ -44,6 +45,7 @@
       document.addEventListener("click", onPossibleCartChange, true);
       document.addEventListener("change", onPossibleCartChange, true);
       document.addEventListener("input", onPossibleCartChange, true);
+      document.addEventListener("change", onGiftChoiceChange, true);
       document.addEventListener("click", onGiftChoiceClick, true);
       document.addEventListener("cart:refresh", checkCart);
       document.addEventListener("cart:updated", checkCart);
@@ -58,6 +60,7 @@
 
   function onPossibleCartChange(event) {
     var target = event.target;
+    if (target && target.closest && target.closest("[data-fgm-choice-select], [data-fgm-add-choice]")) return;
     var maybeCartAction = target && (
       target.closest && (
         target.closest('form[action*="/cart/add"]') ||
@@ -72,6 +75,12 @@
       )
     );
     if (maybeCartAction) scheduleCheck(250);
+  }
+
+  function onGiftChoiceChange(event) {
+    var select = event.target && event.target.closest && event.target.closest("[data-fgm-choice-select]");
+    if (!select) return;
+    state.selectedGiftVariants[String(select.getAttribute("data-fgm-choice-select"))] = String(select.value || "");
   }
 
   function installDirectCheckoutHandler() {
@@ -513,6 +522,7 @@
 
     var select = document.querySelector('[data-fgm-choice-select="' + escapeAttributeValue(rule.id) + '"]');
     var variantId = select ? select.value : "";
+    if (variantId) state.selectedGiftVariants[String(rule.id)] = String(variantId);
     if (!variantId) return;
 
     button.disabled = true;
@@ -608,7 +618,11 @@
   }
 
   function giftImageHtml(rule) {
-    var image = usableGiftImage(rule && rule.giftImage);
+    var selectedVariantId = selectedGiftVariantId(rule);
+    var variant = giftVariantOptions(rule).find(function (item) {
+      return String(item.id) === String(selectedVariantId);
+    });
+    var image = usableGiftImage(variant && variant.image) || usableGiftImage(rule && rule.giftImage);
     if (!image) return "";
     return '<img src="' + escapeAttributeValue(image) + '" alt="' + escapeAttributeValue(rule.giftTitle || "Free gift") + '" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:#fff;border:1px solid #efd8d4;">';
   }
@@ -668,7 +682,8 @@
       '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">',
       '<select data-fgm-choice-select="' + escapeAttributeValue(rule.id) + '" style="min-width:0;border:1px solid #e6c5bf;border-radius:6px;padding:8px;background:#fff;color:#4b3937;font:inherit;">',
       enabledVariants.map(function (variant) {
-        return '<option value="' + escapeAttributeValue(variant.id) + '">' + escapeHtml(giftVariantLabel(variant)) + '</option>';
+        var selected = String(variant.id) === String(selectedGiftVariantId(rule)) ? ' selected="selected"' : "";
+        return '<option value="' + escapeAttributeValue(variant.id) + '"' + selected + '>' + escapeHtml(giftVariantLabel(variant)) + '</option>';
       }).join(""),
       '</select>',
       '<button data-fgm-add-choice="' + escapeAttributeValue(rule.id) + '" type="button" style="border:0;border-radius:6px;background:#8f1018;color:#fff;font-weight:800;padding:9px 12px;cursor:pointer;">Add free gift</button>',
@@ -678,6 +693,16 @@
 
   function giftVariantOptions(rule) {
     return Array.isArray(rule.giftVariantOptions) ? rule.giftVariantOptions : [];
+  }
+
+  function selectedGiftVariantId(rule) {
+    if (!rule) return "";
+    var stored = state.selectedGiftVariants[String(rule.id)];
+    if (stored && giftVariantOptions(rule).some(function (variant) { return String(variant.id) === String(stored); })) {
+      return stored;
+    }
+    var firstAvailable = giftVariantOptions(rule).find(function (variant) { return variant.available !== false; });
+    return String((firstAvailable || giftVariantOptions(rule)[0] || {}).id || rule.giftVariantId || "");
   }
 
   function giftVariantLabel(variant) {
