@@ -573,15 +573,15 @@
     if (matchedRule && isChoiceGiftRule(rule)) {
       var choiceGift = findManagedGiftForRule(cart, rule);
       box.innerHTML = [
-        '<div style="border:1px solid #ead1cc;background:#fff7f3;border-radius:8px;padding:12px;margin:12px 0;font-family:inherit;">',
+        '<div style="border:1px solid #d7d7d7;background:#fff;border-radius:8px;padding:12px;margin:12px 0;font-family:inherit;color:#111;">',
         '<div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;">',
         giftImageHtml(rule),
         '<div style="min-width:0;">',
-        '<div style="font-weight:800;color:#8f1018;margin-bottom:4px;">' + escapeHtml(rule.messageUnlocked) + '</div>',
-        choiceGift ? '<div style="font-size:13px;color:#4b3937;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>' : giftChoiceHtml(rule),
+        '<div style="font-weight:800;color:#111;margin-bottom:4px;">' + escapeHtml(rule.messageUnlocked) + '</div>',
+        choiceGift ? '<div style="font-size:13px;color:#333;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>' : giftChoiceHtml(rule),
         '</div>',
         '</div>',
-        '<div style="height:7px;background:#efd8d4;border-radius:99px;overflow:hidden;margin-top:10px;"><span style="display:block;height:100%;width:100%;background:#8f1018;"></span></div>',
+        '<div style="height:7px;background:#e5e5e5;border-radius:99px;overflow:hidden;margin-top:10px;"><span style="display:block;height:100%;width:100%;background:#111;"></span></div>',
         '</div>'
       ].join("");
       return;
@@ -604,15 +604,15 @@
     }
 
     box.innerHTML = [
-      '<div style="border:1px solid #ead1cc;background:#fff7f3;border-radius:8px;padding:12px;margin:12px 0;font-family:inherit;">',
+      '<div style="border:1px solid #d7d7d7;background:#fff;border-radius:8px;padding:12px;margin:12px 0;font-family:inherit;color:#111;">',
       '<div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;">',
       giftImageHtml(rule),
       '<div style="min-width:0;">',
-      '<div style="font-weight:800;color:#8f1018;margin-bottom:4px;">' + escapeHtml(matchedRule ? rule.messageUnlocked : rule.messageLocked) + '</div>',
-      '<div style="font-size:13px;color:#4b3937;">' + (matchedRule ? escapeHtml(giftDisplayTitle(rule)) : lockedDetailHtml) + '</div>',
+      '<div style="font-weight:800;color:#111;margin-bottom:4px;">' + escapeHtml(matchedRule ? rule.messageUnlocked : rule.messageLocked) + '</div>',
+      '<div style="font-size:13px;color:#333;">' + (matchedRule ? escapeHtml(giftDisplayTitle(rule)) : lockedDetailHtml) + '</div>',
       '</div>',
       '</div>',
-      '<div style="height:7px;background:#efd8d4;border-radius:99px;overflow:hidden;margin-top:10px;"><span style="display:block;height:100%;width:' + percent + '%;background:#8f1018;"></span></div>',
+      '<div style="height:7px;background:#e5e5e5;border-radius:99px;overflow:hidden;margin-top:10px;"><span style="display:block;height:100%;width:' + percent + '%;background:#111;"></span></div>',
       '</div>'
     ].join("");
   }
@@ -624,7 +624,7 @@
     });
     var image = usableGiftImage(variant && variant.image) || usableGiftImage(rule && rule.giftImage);
     if (!image) return "";
-    return '<img src="' + escapeAttributeValue(image) + '" alt="' + escapeAttributeValue(rule.giftTitle || "Free gift") + '" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:#fff;border:1px solid #efd8d4;">';
+    return '<img src="' + escapeAttributeValue(image) + '" alt="' + escapeAttributeValue(rule.giftTitle || "Free gift") + '" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:6px;background:#fff;border:1px solid #d7d7d7;">';
   }
 
   function usableGiftImage(value) {
@@ -651,7 +651,7 @@
     if (!labels.length) return "";
 
     return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">' + labels.map(function (label) {
-      return '<span style="display:inline-flex;align-items:center;border:1px solid #e6c5bf;background:#fff;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700;line-height:1.25;color:#8f1018;">' + escapeHtml(label) + '</span>';
+      return '<span style="display:inline-flex;align-items:center;border:1px solid #111;background:#fff;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700;line-height:1.25;color:#111;">' + escapeHtml(label) + '</span>';
     }).join("") + '</div>';
   }
 
@@ -674,19 +674,19 @@
     var variants = giftVariantOptions(rule);
     var enabledVariants = variants.filter(function (variant) { return variant.available !== false; });
     if (!enabledVariants.length) {
-      return '<div style="font-size:13px;color:#4b3937;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>';
+      return '<div style="font-size:13px;color:#333;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>';
     }
 
     return [
-      '<div style="font-size:13px;color:#4b3937;margin-bottom:8px;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>',
+      '<div style="font-size:13px;color:#333;margin-bottom:8px;">' + escapeHtml(giftDisplayTitle(rule)) + '</div>',
       '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">',
-      '<select data-fgm-choice-select="' + escapeAttributeValue(rule.id) + '" style="min-width:0;border:1px solid #e6c5bf;border-radius:6px;padding:8px;background:#fff;color:#4b3937;font:inherit;">',
+      '<select data-fgm-choice-select="' + escapeAttributeValue(rule.id) + '" style="min-width:0;border:1px solid #111;border-radius:6px;padding:8px;background:#fff;color:#111;font:inherit;">',
       enabledVariants.map(function (variant) {
         var selected = String(variant.id) === String(selectedGiftVariantId(rule)) ? ' selected="selected"' : "";
         return '<option value="' + escapeAttributeValue(variant.id) + '"' + selected + '>' + escapeHtml(giftVariantLabel(variant)) + '</option>';
       }).join(""),
       '</select>',
-      '<button data-fgm-add-choice="' + escapeAttributeValue(rule.id) + '" type="button" style="border:0;border-radius:6px;background:#8f1018;color:#fff;font-weight:800;padding:9px 12px;cursor:pointer;">Add free gift</button>',
+      '<button data-fgm-add-choice="' + escapeAttributeValue(rule.id) + '" type="button" style="border:0;border-radius:6px;background:#111;color:#fff;font-weight:800;padding:9px 12px;cursor:pointer;">Add free gift</button>',
       '</div>'
     ].join("");
   }

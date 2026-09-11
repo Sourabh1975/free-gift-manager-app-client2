@@ -86,6 +86,27 @@ test("gift size selector preserves the selected variant across re-renders", () =
   assert.match(panel.box.innerHTML, /s\.jpg/);
 });
 
+test("gift offer card uses the black and white storefront theme", () => {
+  const panel = { prepend(box) { box.parentNode = this; this.box = box; } };
+  const document = {
+    body: { classList: { contains() { return false; } } },
+    querySelector(selector) {
+      return selector === "cart-drawer" ? { querySelector() { return panel; } } : null;
+    },
+    createElement() { return { setAttribute() {}, innerHTML: "" }; }
+  };
+  const api = harness(document);
+  const rule = {
+    id: 2, giftSelectionMode: "choose_variant", giftProductId: "100",
+    giftTitle: "T-shirt", giftImage: "https://cdn.shopify.com/s/files/gift.jpg", messageUnlocked: "Unlocked",
+    giftVariantOptions: [{ id: "201", title: "M", available: true }]
+  };
+  api.renderMessage(rule, { items: [] }, rule);
+  assert.match(panel.box.innerHTML, /background:#111/);
+  assert.match(panel.box.innerHTML, /color:#111/);
+  assert.doesNotMatch(panel.box.innerHTML, /#8f1018|#fff7f3|#ead1cc|#efd8d4|#4b3937|#e6c5bf/);
+});
+
 test("gift control guard leaves gift remove buttons available for size changes", () => {
   const document = {
     head: { appended: null, appendChild(node) { this.appended = node; } },
