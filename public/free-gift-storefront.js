@@ -865,6 +865,7 @@
   async function refreshVisibleCartSections() {
     var sectionIds = cartSectionIds();
     if (!sectionIds.length) return false;
+    var drawerWasOpen = isCartDrawerOpen();
 
     var response = await fetch("/?sections=" + encodeURIComponent(sectionIds.join(",")), {
       credentials: "same-origin",
@@ -876,6 +877,7 @@
     sectionIds.forEach(function (id) {
       if (typeof sections[id] === "string") changed = replaceShopifySection(id, sections[id]) || changed;
     });
+    if (changed && drawerWasOpen) restoreCartDrawerOpen();
     return changed;
   }
 
@@ -912,6 +914,54 @@
     return true;
   }
 
+  function isCartDrawerOpen() {
+    if (document.body && document.body.classList && (
+      document.body.classList.contains("cart-open") ||
+      document.body.classList.contains("js-drawer-open") ||
+      document.body.classList.contains("js-drawer-open-cart") ||
+      document.body.classList.contains("overflow-hidden")
+    )) return true;
+    var drawer = cartDrawerElement();
+    if (!drawer) return false;
+    if (drawer.hasAttribute && drawer.hasAttribute("open")) return true;
+    if (drawer.getAttribute && drawer.getAttribute("aria-hidden") === "false") return true;
+    return !!(drawer.classList && (
+      drawer.classList.contains("active") ||
+      drawer.classList.contains("is-open") ||
+      drawer.classList.contains("open") ||
+      drawer.classList.contains("animate")
+    ));
+  }
+
+  function restoreCartDrawerOpen() {
+    window.setTimeout(function () {
+      var drawer = cartDrawerElement();
+      if (drawer) {
+        if (drawer.setAttribute) {
+          drawer.setAttribute("open", "");
+          drawer.setAttribute("aria-hidden", "false");
+        }
+        if (drawer.classList) drawer.classList.add("active", "is-open", "open", "animate");
+      }
+      if (document.body && document.body.classList) {
+        document.body.classList.add("cart-open", "overflow-hidden");
+      }
+      dispatchCartEvent("cart:open", state.lastCart || {});
+      dispatchCartEvent("cart-drawer:open", state.lastCart || {});
+    }, 30);
+  }
+
+  function cartDrawerElement() {
+    return document.querySelector("cart-drawer-component") ||
+      document.querySelector("cart-drawer") ||
+      document.querySelector("#CartDrawer") ||
+      document.querySelector(".cart-drawer") ||
+      document.querySelector("#halo-cart-sidebar") ||
+      document.querySelector(".halo-cart-sidebar") ||
+      document.querySelector("[id*='CartDrawer']") ||
+      document.querySelector("[class*='cart-drawer']");
+  }
+
   function sectionHtmlElement(id, html) {
     if (typeof DOMParser === "function") {
       var parsedDocument = new DOMParser().parseFromString(html, "text/html");
@@ -946,6 +996,15 @@
       '[data-fgm-gift-line="true"] .quantity button,',
       '[data-fgm-gift-line="true"] .previewCartItem-qty .btn-quantity,',
       '[data-fgm-gift-line="true"] .cart-item-qty .btn-quantity,',
+      '[data-fgm-gift-line="true"] .cart-item__quantity,',
+      '[data-fgm-gift-line="true"] .cart-quantity,',
+      '[data-fgm-gift-line="true"] .quantity-selector,',
+      '[data-fgm-gift-line="true"] .quantity__button,',
+      '[data-fgm-gift-line="true"] .js-qty,',
+      '[data-fgm-gift-line="true"] .qty,',
+      '[data-fgm-gift-line="true"] [class*="quantity"]:not([class*="remove"]),',
+      '[data-fgm-gift-line="true"] [class*="Quantity"]:not([class*="remove"]),',
+      '[data-fgm-gift-line="true"] [data-quantity],',
       '[data-fgm-gift-line="true"] [data-minus-quantity-cart],',
       '[data-fgm-gift-line="true"] [data-plus-quantity-cart],',
       '[data-fgm-gift-line="true"] quantity-input,',
