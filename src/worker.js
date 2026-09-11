@@ -688,6 +688,8 @@ function pickVariantId(variants) {
 function usableGiftImage(value) {
   const image = String(value || "").trim();
   if (!image || image.endsWith("/...")) return "";
+  if (/^https?:\/\/admin\.shopify\.com\//i.test(image)) return "";
+  if (/\/products\/\d+(?:[?#].*)?$/i.test(image)) return "";
   return /^https?:\/\//i.test(image) ? image : "";
 }
 

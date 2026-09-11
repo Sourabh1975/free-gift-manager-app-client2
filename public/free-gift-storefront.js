@@ -616,6 +616,8 @@
   function usableGiftImage(value) {
     var image = String(value || "").trim();
     if (!image || image.slice(-4) === "/...") return "";
+    if (/^https?:\/\/admin\.shopify\.com\//i.test(image)) return "";
+    if (/\/products\/\d+(?:[?#].*)?$/i.test(image)) return "";
     return /^https?:\/\//i.test(image) ? image : "";
   }
 
