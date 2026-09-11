@@ -79,6 +79,7 @@ test("gift control guard leaves gift remove buttons available for size changes",
   api.state.config.settings = { lockGiftQuantity: true };
   api.installGiftControlGuard();
   assert.doesNotMatch(document.head.appended.textContent, /cart-remove-button|previewCartItem-remove|data-cart-remove\]/);
+  assert.doesNotMatch(document.head.appended.textContent, /cart-item__quantity-wrapper|quantity-popover-container/);
 });
 
 test("Dawn: gift mutation refreshes drawer sections without reloading the page", async () => {
